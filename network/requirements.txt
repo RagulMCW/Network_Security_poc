@@ -1,0 +1,28 @@
+# Requirements file for Network Security Monitor
+
+# Core dependencies
+Flask==2.3.3
+scapy==2.5.0
+psutil==5.9.6
+
+# Development dependencies
+pytest==7.4.3
+pytest-cov==4.1.0
+requests==2.31.0
+
+# Testing
+unittest-xml-reporting==3.2.0
+mock==5.1.0
+
+# Networking
+netifaces==0.11.0
+python-iptables==1.0.1
+
+# Utilities
+PyYAML==6.0.1
+click==8.1.7
+colorama==0.4.6
+
+# Optional: For advanced packet analysis
+dpkt==1.9.8
+pyshark==0.6
