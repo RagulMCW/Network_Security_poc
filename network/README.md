@@ -1,94 +1,93 @@
-# Network Security Monitoring Container
+# Network Security Monitor
 
-A comprehensive Docker-based network security monitoring solution that provides real-time packet capture, load balancing, and web-based monitoring interfaces.
-
-## Features
-
-- **Real-time Packet Capture**: Automated tcpdump with file rotation
-- **Load Balancing**: HAProxy with statistics dashboard
-- **REST API**: Flask-based web interface with monitoring endpoints
-- **Health Monitoring**: Built-in health checks and status reporting
-- **Cross-platform**: WSL/Linux support with Windows accessibility
+Capture and analyze network traffic using Docker and Python.
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker and Docker Compose
-- WSL2 (for Windows users)
-- Git
-
-### Build and Run
-
+### 1. Start Container (WSL)
 ```bash
-# Clone and navigate to project
-cd /path/to/Network_Security_poc/network
-
-# Build the container
-make build
-
-# Run with default configuration
-make run
-
-# Access services
-# Web Interface: http://localhost:8080
-# API: http://localhost:5000
-# Statistics: http://localhost:8404/stats
+cd /mnt/e/nos/Network_Security_poc/network
+./wsl-manager.sh setup
 ```
 
-### For WSL + Windows Users
-
-```bash
-# Build and run with Windows port mapping
-make run-wsl
-
-# Access from Windows browser
-# Web Interface: http://localhost:8082
-# API: http://localhost:5002
-# Statistics: http://localhost:8415/stats
+### 2. Analyze Packets (Windows)
+```cmd
+cd E:\nos\Network_Security_poc\network
+analyze.bat
 ```
 
-## Project Structure
+### 3. Stop Container (WSL)
+```bash
+./wsl-manager.sh stop
+```
+
+## What You Get
+
+**Analysis Results:**
+- Total packets captured
+- Protocol distribution (TCP, UDP, ARP, etc.)
+- Top source/destination IPs
+- Network conversations
+- Security anomaly detection
+
+**Example Output:**
+```
+Total Packets: 348
+TCP: 333 packets (95.7%)
+ARP: 4 packets (1.1%)
+Top IPs: 192.168.6.129, 192.168.6.131
+```
+
+## Web Access
+- Health Check: http://localhost:5002/health
+- Statistics: http://localhost:8082/stats
+
+## All Commands
+
+### WSL Commands
+```bash
+./wsl-manager.sh          # Interactive menu
+./wsl-manager.sh setup    # Build + Start
+./wsl-manager.sh stop     # Stop
+./wsl-manager.sh health   # Check health
+./wsl-manager.sh logs     # View logs
+```
+
+### Windows Commands
+```cmd
+analyze.bat               # Analyze packets
+```
+
+## Files
 
 ```
 network/
-├── src/                    # Source code
-│   ├── app/               # Flask application
-│   └── config/            # Configuration files
-├── scripts/               # Deployment and utility scripts
-├── docs/                  # Documentation
-├── docker/                # Docker configuration
-├── tests/                 # Test scripts
-└── captures/              # Packet capture output
+├── wsl-manager.sh       # WSL manager (Docker)
+├── analyze.bat          # Windows analyzer
+├── START_HERE.md        # Quick overview
+├── QUICK_REF.md         # Command reference
+│
+├── captures/            # Captured packet files
+├── docker/              # Dockerfile
+├── scripts/             # Analysis scripts (Python)
+├── src/                 # Flask app + HAProxy config
+└── docs/                # API + Testing docs
 ```
+
+## Requirements
+
+- Docker (WSL2)
+- Python 3.8+ with scapy
+- Virtual environment at `E:\nos\.venv`
 
 ## Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Configuration](docs/configuration.md)
-- [API Documentation](docs/api.md)
-- [Deployment Guide](docs/deployment.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- **START_HERE.md** - Quick start (1 page)
+- **QUICK_REF.md** - Command reference
+- **HOW_IT_WORKS.md** - Detailed explanation ⭐
+- **DIAGRAMS.md** - Visual diagrams ⭐
+- **PROJECT_SUMMARY.md** - Project overview
+- **docs/API.md** - API documentation
+- **docs/TESTING.md** - Testing guide
 
-## Security Notes
-
-- Requires NET_RAW and NET_ADMIN capabilities for packet capture
-- Container runs as root for network access
-- Packet captures are stored in mounted volumes
-- Use appropriate network isolation in production
-
-
-
-## Contributing
-
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
-
-
-
-make quickstart
-
-make down
-
-make analyze
-
-make health-check
+⭐ = Perfect for team presentations!

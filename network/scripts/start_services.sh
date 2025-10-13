@@ -23,12 +23,13 @@ if ! ip link show "${IFACE}" >/dev/null 2>&1; then
     echo "Set CAPTURE_IFACE environment variable to change interface"
 fi
 
-# Start tcpdump with rotation (10MB files, keep 5 files)
-echo "Starting packet capture..."
-tcpdump -i "${IFACE}" -s 0 -w "${PCAP_FILE}" -C 10 -W 5 \
+# Start tcpdump with TIME-based rotation (30 seconds)
+echo "Starting packet capture with 30-second rotation..."
+tcpdump -i "${IFACE}" -s 0 -G 30 -w "${CAP_DIR}/capture_%Y%m%d_%H%M%S.pcap" \
     'not port 22' >/dev/null 2>&1 &
 TCPDUMP_PID=$!
 echo "tcpdump started (PID: ${TCPDUMP_PID})"
+echo "New PCAP file created every 30 seconds"
 
 # Start HAProxy
 echo "Starting HAProxy load balancer..."
