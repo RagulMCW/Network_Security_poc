@@ -25,6 +25,7 @@ WORKDIR /app
 # Copy source code
 COPY src/ /app/src/
 COPY scripts/ /app/scripts/
+COPY network-monitor.html /app/network-monitor.html
 
 # Install Python dependencies
 RUN pip3 install flask scapy

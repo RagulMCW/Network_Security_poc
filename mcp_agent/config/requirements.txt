@@ -1,0 +1,17 @@
+# Network Security Monitor - MCP Agent Requirements
+
+# Core dependencies
+anthropic>=0.18.0
+python-dotenv>=0.19.0
+
+# For packet analysis
+scapy>=2.5.0
+
+# FastMCP - Install from source if not available via pip:
+# pip install git+https://github.com/jlowin/fastmcp.git
+# Or install manually if you have it locally
+
+# Optional development dependencies
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0

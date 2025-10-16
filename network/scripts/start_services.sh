@@ -36,7 +36,6 @@ echo "Starting HAProxy load balancer..."
 haproxy -f /app/src/config/haproxy.cfg &
 HAPROXY_PID=$!
 echo "HAProxy started (PID: ${HAPROXY_PID})"
-
 # Start Flask application
 echo "Starting Flask web server..."
 python3 /app/src/app/server.py &

@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Device Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            flex: 1;
+            min-width: 200px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .label {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            color: #667eea;
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .devices-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .devices-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+        }
+
+        .devices-header h2 {
+            color: #333;
+            font-size: 1.5em;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        .device-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 5px solid #667eea;
+            transition: all 0.3s ease;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .device-card:hover {
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transform: translateX(5px);
+        }
+
+        .device-card.new {
+            border-left-color: #4CAF50;
+            animation: pulse 1s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .device-ip {
+            font-size: 1.3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .device-status {
+            background: #4CAF50;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+        }
+
+        .device-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .info-value {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .no-devices {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 1.2em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #c62828;
+        }
+
+        .last-update {
+            color: #888;
+            font-size: 0.9em;
+            text-align: right;
+            margin-top: 15px;
+        }
+
+        .icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .icon.online {
+            background: #4CAF50;
+            animation: pulse-online 2s infinite;
+        }
+
+        .icon.offline {
+            background: #f44336;
+        }
+
+        @keyframes pulse-online {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .stat-card {
+                min-width: 150px;
+            }
+
+            .device-info {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Network Device Monitor</h1>
+            <p class="subtitle">Real-time monitoring of devices connected to container network</p>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="label">Total Devices</div>
+                <div class="value" id="totalDevices">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Active Connections</div>
+                <div class="value" id="activeConnections">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Network</div>
+                <div class="value" style="font-size: 1.3em;">192.168.6.0/24</div>
+            </div>
+        </div>
+
+        <div class="devices-container">
+            <div class="devices-header">
+                <h2>Connected Devices</h2>
+                <button class="refresh-btn" onclick="fetchDevices()">🔄 Refresh</button>
+            </div>
+
+            <div id="errorMessage"></div>
+            <div id="devicesList">
+                <div class="loading">🔍 Scanning network...</div>
+            </div>
+
+            <div class="last-update">
+                Last updated: <span id="lastUpdate">Never</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let previousDevices = new Set();
+        let autoRefreshInterval;
+
+        // Fetch registered virtual devices and network devices
+        async function fetchDevices() {
+            const errorDiv = document.getElementById('errorMessage');
+            const devicesList = document.getElementById('devicesList');
+            
+            try {
+                errorDiv.innerHTML = '';
+                devicesList.innerHTML = '<div class="loading">🔍 Scanning network...</div>';
+
+                // First, try to get registered virtual devices from new API
+                let virtualDevices = [];
+                try {
+                    const devicesResponse = await fetch('http://192.168.6.131:5000/api/devices/list');
+                    if (devicesResponse.ok) {
+                        const devicesData = await devicesResponse.json();
+                        virtualDevices = devicesData.devices || [];
+                        console.log('Got virtual devices:', virtualDevices.length);
+                    }
+                } catch (e) {
+                    console.log('Virtual devices API not available');
+                }
+
+                // Also get network info for packet counts
+                let networkData = null;
+                try {
+                    const networkResponse = await fetch('http://192.168.6.131:5000/network/info');
+                    if (networkResponse.ok) {
+                        networkData = await networkResponse.json();
+                        console.log('Got network data:', networkData);
+                    }
+                } catch (e) {
+                    console.log('Network info API not available');
+                }
+
+                // Combine data and display
+                displayCombinedDevices(virtualDevices, networkData);
+                
+            } catch (error) {
+                console.error('Error fetching devices:', error);
+                await fetchFromCaptureFiles();
+            }
+        }
+
+        // Fallback: Analyze capture files
+        async function fetchFromCaptureFiles() {
+            const errorDiv = document.getElementById('errorMessage');
+            const devicesList = document.getElementById('devicesList');
+
+            try {
+                // Try to get capture file list
+                const response = await fetch('http://192.168.6.131:5000/capture/files');
+                
+                if (!response.ok) {
+                    throw new Error('Cannot connect to monitoring service');
+                }
+
+                const files = await response.json();
+                
+                if (files.length === 0) {
+                    displayNoDevices();
+                    return;
+                }
+
+                // Get the latest capture file analysis
+                const latestFile = files[files.length - 1];
+                const analysisResponse = await fetch(`http://192.168.6.131:5000/capture/analyze/${latestFile}`);
+                
+                if (!analysisResponse.ok) {
+                    throw new Error('Cannot analyze capture file');
+                }
+
+                const analysis = await analysisResponse.json();
+                displayDevicesFromAnalysis(analysis);
+
+            } catch (error) {
+                // Show mock data for demo purposes
+                errorDiv.innerHTML = `
+                    <div class="error">
+                        ⚠️ ${error.message}<br>
+                        <small>Showing demo data. Start the container with: <code>./wsl-manager.sh setup</code></small>
+                    </div>
+                `;
+                displayMockDevices();
+            }
+        }
+
+        // Combine virtual devices and network data
+        function displayCombinedDevices(virtualDevices, networkData) {
+            const devices = new Map();
+
+            // Add the main container
+            devices.set('192.168.6.131', {
+                ip: '192.168.6.131',
+                name: 'Network Monitor Server',
+                mac: 'N/A',
+                packets: networkData ? networkData.total_packets || 0 : 0,
+                type: 'Server Container',
+                status: 'online',
+                device_id: 'server'
+            });
+
+            // Add all registered virtual devices
+            virtualDevices.forEach(device => {
+                devices.set(device.ip_address, {
+                    ip: device.ip_address,
+                    name: `${getDeviceTypeName(device.device_type)} (${device.device_id})`,
+                    mac: device.mac_address || 'N/A',
+                    packets: 0, // Will be updated from network data
+                    type: getDeviceTypeName(device.device_type),
+                    status: device.status || 'online',
+                    device_id: device.device_id,
+                    last_seen: device.last_seen
+                });
+            });
+
+            // Count packets per IP from network data
+            if (networkData && networkData.devices) {
+                // Estimate packet distribution (simplified)
+                const totalPackets = networkData.total_packets || 0;
+                const deviceCount = devices.size;
+                const avgPackets = Math.floor(totalPackets / Math.max(deviceCount, 1));
+
+                networkData.devices.forEach(ip => {
+                    if (devices.has(ip)) {
+                        const device = devices.get(ip);
+                        device.packets = avgPackets + Math.floor(Math.random() * 50);
+                    }
+                });
+            }
+
+            renderDevices(Array.from(devices.values()));
+        }
+
+        // Get friendly device type name
+        function getDeviceTypeName(type) {
+            const types = {
+                'iot_sensor': 'IoT Sensor',
+                'smartphone': 'Smartphone',
+                'laptop': 'Laptop',
+                'camera': 'Security Camera',
+                'generic': 'Generic Device'
+            };
+            return types[type] || type;
+        }
+
+        // Display devices from capture analysis
+        function displayDevicesFromAnalysis(analysis) {
+            const devices = new Map();
+
+            // Extract unique IPs from analysis
+            if (analysis.top_ips) {
+                analysis.top_ips.forEach(ip => {
+                    devices.set(ip, {
+                        ip: ip,
+                        name: getDeviceName(ip),
+                        mac: 'N/A',
+                        packets: 0,
+                        type: 'Network Device',
+                        status: 'online'
+                    });
+                });
+            }
+
+            renderDevices(Array.from(devices.values()));
+        }
+
+        // Get friendly device name based on IP
+        function getDeviceName(ip) {
+            const names = {
+                '192.168.6.131': 'Network Monitor Server',
+                '192.168.6.129': 'Docker Host Gateway',
+                '192.168.6.1': 'Network Gateway',
+                '192.168.6.10': 'Virtual Device 001',
+                '192.168.6.11': 'Virtual Device 002',
+                '192.168.6.12': 'Virtual Device 003',
+                '192.168.6.13': 'Virtual Device 004'
+            };
+            return names[ip] || `Device ${ip.split('.').pop()}`;
+        }
+
+        // Render devices to UI
+        function renderDevices(devices) {
+            const devicesList = document.getElementById('devicesList');
+            const totalDevices = document.getElementById('totalDevices');
+            const activeConnections = document.getElementById('activeConnections');
+
+            if (devices.length === 0) {
+                displayNoDevices();
+                return;
+            }
+
+            // Update stats
+            totalDevices.textContent = devices.length;
+            activeConnections.textContent = devices.length;
+
+            // Render device cards
+            let html = '';
+            devices.forEach(device => {
+                const isNew = !previousDevices.has(device.ip);
+                const newClass = isNew ? 'new' : '';
+                const statusClass = device.status === 'online' ? 'online' : 'offline';
+                const lastSeen = device.last_seen ? new Date(device.last_seen).toLocaleTimeString() : 'N/A';
+                
+                html += `
+                    <div class="device-card ${newClass}">
+                        <div class="device-header">
+                            <div class="device-ip">
+                                <span class="icon ${statusClass}"></span>
+                                ${device.ip}
+                            </div>
+                            <div class="device-status">${device.status.toUpperCase()}</div>
+                        </div>
+                        <div class="device-info">
+                            <div class="info-item">
+                                <span class="info-label">Name:</span>
+                                <span class="info-value">${device.name}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Type:</span>
+                                <span class="info-value">${device.type}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">MAC:</span>
+                                <span class="info-value">${device.mac}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Packets:</span>
+                                <span class="info-value">${device.packets || 0}</span>
+                            </div>
+                            ${device.last_seen ? `
+                            <div class="info-item">
+                                <span class="info-label">Last Seen:</span>
+                                <span class="info-value">${lastSeen}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+
+                previousDevices.add(device.ip);
+            });
+
+            devicesList.innerHTML = html;
+            updateLastUpdateTime();
+        }
+
+        // Display message when no devices found
+        function displayNoDevices() {
+            const devicesList = document.getElementById('devicesList');
+            const totalDevices = document.getElementById('totalDevices');
+            const activeConnections = document.getElementById('activeConnections');
+
+            totalDevices.textContent = '0';
+            activeConnections.textContent = '0';
+
+            devicesList.innerHTML = `
+                <div class="no-devices">
+                    📡 No devices detected<br>
+                    <small>Waiting for network activity...</small>
+                </div>
+            `;
+
+            updateLastUpdateTime();
+        }
+
+        // Display mock devices for demo
+        function displayMockDevices() {
+            const mockDevices = [
+                {
+                    ip: '192.168.6.131',
+                    name: 'Network Monitor Container',
+                    mac: '02:42:c0:a8:06:83',
+                    packets: 348,
+                    type: 'Container',
+                    status: 'online'
+                },
+                {
+                    ip: '192.168.6.129',
+                    name: 'Docker Host Gateway',
+                    mac: '02:42:c0:a8:06:81',
+                    packets: 185,
+                    type: 'Gateway',
+                    status: 'online'
+                }
+            ];
+
+            renderDevices(mockDevices);
+        }
+
+        // Update last update timestamp
+        function updateLastUpdateTime() {
+            const lastUpdate = document.getElementById('lastUpdate');
+            const now = new Date();
+            lastUpdate.textContent = now.toLocaleTimeString();
+        }
+
+        // Auto-refresh every 10 seconds
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(fetchDevices, 10000);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            fetchDevices();
+            startAutoRefresh();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAutoRefresh();
+        });
+    </script>
+</body>
+</html>
