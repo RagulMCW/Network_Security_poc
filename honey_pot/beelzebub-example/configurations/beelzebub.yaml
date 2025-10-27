@@ -1,0 +1,4 @@
+core:
+  logging:
+    debug: false
+    logsPath: /logs/beelzebub.log

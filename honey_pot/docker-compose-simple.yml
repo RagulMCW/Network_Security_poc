@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  beelzebub:
+    image: m4r10/beelzebub:latest
+    container_name: beelzebub-honeypot
+    env_file:
+      - .env
+    environment:
+      - GLM_KEY=${GLM_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+    ports:
+      - "2222:22"    # SSH
+      - "8080:80"    # HTTP
+      - "8443:443"   # HTTPS
+      - "2121:21"    # FTP
+      - "2323:23"    # Telnet
+      - "3306:3306"  # MySQL
+      - "5432:5432"  # PostgreSQL
+    volumes:
+      - ./beelzebub-example/configurations:/configurations
+      - ./logs:/logs
+    restart: unless-stopped
+    networks:
+      - honeypot_net
+
+  # Log viewer
+  log-viewer:
+    image: nginx:alpine
+    container_name: beelzebub-log-viewer
+    volumes:
+      - ./logs:/usr/share/nginx/html/logs:ro
+    ports:
+      - "8888:80"
+    networks:
+      - honeypot_net
+
+networks:
+  honeypot_net:
+    driver: bridge

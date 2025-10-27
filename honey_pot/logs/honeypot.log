@@ -1,0 +1,56 @@
+2025-10-23 11:35:37,522 - INFO - Starting Multi-Protocol Honeypot...
+2025-10-23 11:35:37,523 - INFO - HTTP Honeypot listening on port 80
+2025-10-23 11:35:37,524 - INFO - HTTP Honeypot listening on port 443
+2025-10-23 11:35:37,524 - INFO - MySQL Honeypot listening on port 3306
+2025-10-23 11:35:37,524 - INFO - All honeypot services started
+2025-10-23 11:36:16,983 - INFO - Starting Multi-Protocol Honeypot...
+2025-10-23 11:36:16,984 - INFO - HTTP Honeypot listening on port 443
+2025-10-23 11:36:16,985 - INFO - HTTP Honeypot listening on port 80
+2025-10-23 11:36:16,985 - INFO - All honeypot services started
+2025-10-23 11:36:16,985 - INFO - MySQL Honeypot listening on port 3306
+2025-10-23 11:37:21,740 - INFO - Starting Multi-Protocol Honeypot...
+2025-10-23 11:37:21,741 - INFO - HTTP Honeypot listening on port 80
+2025-10-23 11:37:21,742 - INFO - HTTP Honeypot listening on port 443
+2025-10-23 11:37:21,742 - INFO - MySQL Honeypot listening on port 3306
+2025-10-23 11:37:21,742 - INFO - All honeypot services started
+2025-10-23 11:37:22,149 - INFO - HTTP attack from 192.168.6.1: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,719 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,729 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,738 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,748 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,758 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,767 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,776 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,785 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,794 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:37:35,802 - INFO - HTTP attack from 192.168.6.1: b'GET /admin HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/8.5.0\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,196 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,324 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,444 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,564 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,690 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,816 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:06,937 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,053 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,174 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,317 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,438 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,566 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,691 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,817 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:07,939 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:08,060 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:08,180 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:08,301 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:08,420 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:38:08,534 - INFO - HTTP attack from 192.168.6.133: b'GET / HTTP/1.1\r\nHost: 192.168.6.200\r\nUser-Agent: curl/7.88.1\r\nAccept: */*\r\n\r\n'
+2025-10-23 11:39:41,793 - INFO - Starting Multi-Protocol Honeypot...
+2025-10-23 11:39:41,793 - INFO - HTTP Honeypot listening on port 80
+2025-10-23 11:39:41,794 - INFO - HTTP Honeypot listening on port 443
+2025-10-23 11:39:41,794 - INFO - MySQL Honeypot listening on port 3306
+2025-10-23 11:39:41,794 - INFO - All honeypot services started
+2025-10-24 05:14:30,000 - INFO - Starting Multi-Protocol Honeypot...
+2025-10-24 05:14:30,001 - INFO - HTTP Honeypot listening on port 80
+2025-10-24 05:14:30,002 - INFO - HTTP Honeypot listening on port 443
+2025-10-24 05:14:30,003 - INFO - All honeypot services started
+2025-10-24 05:14:30,003 - INFO - MySQL Honeypot listening on port 3306

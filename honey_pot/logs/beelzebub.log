@@ -1,0 +1,23 @@
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-10-27T04:18:31Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-27T04:18:31Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-27T04:18:31Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-27T04:18:31Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-10-27T04:18:43Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-27T04:18:43Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-27T04:18:43Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-27T04:18:43Z"}
+{"event":{"DateTime":"2025-10-27T04:22:50Z","RemoteAddr":"172.18.0.1:34312","Protocol":"SSH","Command":"","CommandOutput":"","Status":"Stateless","Msg":"New SSH Login Attempt","ID":"134568ec-6a16-4c7f-991e-a965d54c09b4","Environ":"","User":"root","Password":"123456","Client":"SSH-2.0-OpenSSH_for_Windows_9.5","Headers":"","HeadersMap":null,"Cookies":"","UserAgent":"","HostHTTPRequest":"","Body":"","HTTPMethod":"","RequestURI":"","Description":"SSH Interactive Honeypot - AI Powered","SourceIp":"172.18.0.1","SourcePort":"34312","TLSServerName":"","Handler":""},"level":"info","msg":"New Event","status":"Stateless","time":"2025-10-27T04:22:50Z"}
+{"event":{"DateTime":"2025-10-27T04:22:50Z","RemoteAddr":"172.18.0.1:34312","Protocol":"SSH","Command":"","CommandOutput":"","Status":"Start","Msg":"New SSH Terminal Session","ID":"67922a82-073b-4267-93c2-7344b28ef430","Environ":"","User":"root","Password":"","Client":"","Headers":"","HeadersMap":null,"Cookies":"","UserAgent":"","HostHTTPRequest":"","Body":"","HTTPMethod":"","RequestURI":"","Description":"SSH Interactive Honeypot - AI Powered","SourceIp":"172.18.0.1","SourcePort":"34312","TLSServerName":"","Handler":""},"level":"info","msg":"New Event","status":"Start","time":"2025-10-27T04:22:50Z"}
+{"event":{"DateTime":"2025-10-27T04:27:30Z","RemoteAddr":"","Protocol":"SSH","Command":"","CommandOutput":"","Status":"End","Msg":"End SSH Session","ID":"67922a82-073b-4267-93c2-7344b28ef430","Environ":"","User":"","Password":"","Client":"","Headers":"","HeadersMap":null,"Cookies":"","UserAgent":"","HostHTTPRequest":"","Body":"","HTTPMethod":"","RequestURI":"","Description":"","SourceIp":"","SourcePort":"","TLSServerName":"","Handler":""},"level":"info","msg":"New Event","status":"End","time":"2025-10-27T04:27:30Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-10-27T05:07:27Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-27T05:07:27Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-27T05:07:27Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-27T05:07:27Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-10-27T05:08:11Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-27T05:08:11Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-27T05:08:11Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-27T05:08:11Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-10-27T05:08:47Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-27T05:08:47Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-27T05:08:47Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-27T05:08:47Z"}

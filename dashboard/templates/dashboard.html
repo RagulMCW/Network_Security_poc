@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Security Control Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-title {
+            font-size: 1.5em;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .status-on {
+            background: #4ade80;
+            color: white;
+        }
+
+        .status-off {
+            background: #f87171;
+            color: white;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #4ade80;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f87171;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #fbbf24;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .device-list {
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .device-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .device-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .device-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .device-status {
+            font-size: 0.9em;
+            color: #6b7280;
+        }
+
+        .logs-container {
+            background: #1f2937;
+            color: #10b981;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.success {
+            border-left: 5px solid #4ade80;
+        }
+
+        .toast.error {
+            border-left: 5px solid #f87171;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        select, input {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1em;
+            flex: 1;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+
+    <div class="container">
+        <header>
+            <h1>🛡️ Network Security Control Panel</h1>
+            <p class="subtitle">Manage your entire Docker network security setup</p>
+        </header>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value" id="stat-containers">0</div>
+                <div class="stat-label">Running Containers</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="stat-devices">0</div>
+                <div class="stat-label">Active Devices</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="stat-attacks">0</div>
+                <div class="stat-label">Attacks Logged</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="stat-network">OFF</div>
+                <div class="stat-label">Network Status</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Network Control -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        🌐 Network Control
+                    </div>
+                    <span class="status-badge" id="network-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    Docker network: <strong>custom_net (192.168.6.0/24)</strong>
+                </p>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="createNetwork()">
+                        ▶️ Create Network
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteNetwork()">
+                        ⏹️ Delete Network
+                    </button>
+                </div>
+            </div>
+
+            <!-- Device Management -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        📱 Device Management
+                    </div>
+                    <span class="status-badge status-off" id="device-count">0 Devices</span>
+                </div>
+                <div class="input-group">
+                    <select id="device-type">
+                        <option value="normal">Normal Device</option>
+                        <option value="sensor">Sensor Device</option>
+                        <option value="actuator">Actuator Device</option>
+                    </select>
+                    <button class="btn btn-success" onclick="createDevice()">
+                        ➕ Add Device
+                    </button>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-warning" onclick="refreshDevices()">
+                        🔄 Refresh
+                    </button>
+                    <button class="btn btn-secondary" onclick="cleanupDevices()">
+                        🧹 Cleanup
+                    </button>
+                </div>
+                <div class="device-list" id="device-list">
+                    <p style="text-align: center; color: #6b7280; padding: 20px;">
+                        No devices yet. Click "Add Device" to create one.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Honeypot Control -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        🍯 Honeypot System
+                    </div>
+                    <span class="status-badge" id="honeypot-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    IP: <strong>192.168.6.200</strong> | Dashboard: <a href="http://localhost:5001" target="_blank">localhost:5001</a>
+                </p>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="startHoneypot()">
+                        ▶️ Start Honeypot
+                    </button>
+                    <button class="btn btn-danger" onclick="stopHoneypot()">
+                        ⏹️ Stop Honeypot
+                    </button>
+                    <button class="btn btn-warning" onclick="viewHoneypotLogs()">
+                        📋 View Logs
+                    </button>
+                </div>
+            </div>
+
+            <!-- Attacker Simulation -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        💀 DOS Attackers
+                    </div>
+                    <span class="status-badge" id="attacker-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    Simulate DOS attacks for testing
+                </p>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="startAttackers()">
+                        ▶️ Start Attackers
+                    </button>
+                    <button class="btn btn-danger" onclick="stopAttackers()">
+                        ⏹️ Stop Attackers
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Display -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    📊 Live System Logs
+                </div>
+                <button class="btn btn-primary" onclick="refreshLogs()">
+                    🔄 Refresh Logs
+                </button>
+            </div>
+            <div class="logs-container" id="logs-display">
+                <div class="log-entry">System ready. Waiting for activity...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Refresh status
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                // Update network status
+                const networkStatus = document.getElementById('network-status');
+                if (data.network.exists) {
+                    networkStatus.textContent = 'ON';
+                    networkStatus.className = 'status-badge status-on';
+                    document.getElementById('stat-network').textContent = 'ON';
+                } else {
+                    networkStatus.textContent = 'OFF';
+                    networkStatus.className = 'status-badge status-off';
+                    document.getElementById('stat-network').textContent = 'OFF';
+                }
+
+                // Update devices
+                document.getElementById('device-count').textContent = `${data.devices.count} Devices`;
+                document.getElementById('stat-devices').textContent = data.devices.count;
+
+                // Update honeypot
+                const honeypotStatus = document.getElementById('honeypot-status');
+                if (data.honeypot.running) {
+                    honeypotStatus.textContent = 'RUNNING';
+                    honeypotStatus.className = 'status-badge status-on';
+                } else {
+                    honeypotStatus.textContent = 'OFF';
+                    honeypotStatus.className = 'status-badge status-off';
+                }
+
+                // Update attackers
+                const attackerStatus = document.getElementById('attacker-status');
+                if (data.attackers.running) {
+                    attackerStatus.textContent = 'ACTIVE';
+                    attackerStatus.className = 'status-badge status-on';
+                } else {
+                    attackerStatus.textContent = 'OFF';
+                    attackerStatus.className = 'status-badge status-off';
+                }
+
+                // Update container count
+                document.getElementById('stat-containers').textContent = data.all_containers.length;
+
+            } catch (error) {
+                console.error('Error refreshing status:', error);
+            }
+        }
+
+        // Network control
+        async function createNetwork() {
+            showToast('Creating network...', 'success');
+            try {
+                const response = await fetch('/api/network/create', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                refreshStatus();
+            } catch (error) {
+                showToast('Error creating network', 'error');
+            }
+        }
+
+        async function deleteNetwork() {
+            if (!confirm('Delete network? This will stop all containers!')) return;
+            showToast('Deleting network...', 'success');
+            try {
+                const response = await fetch('/api/network/delete', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                refreshStatus();
+                refreshDevices();
+            } catch (error) {
+                showToast('Error deleting network', 'error');
+            }
+        }
+
+        // Device management
+        async function refreshDevices() {
+            try {
+                const response = await fetch('/api/devices/list');
+                const data = await response.json();
+
+                const deviceList = document.getElementById('device-list');
+                
+                if (data.devices.length === 0) {
+                    deviceList.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No devices yet. Click "Add Device" to create one.</p>';
+                    return;
+                }
+
+                deviceList.innerHTML = data.devices.map(device => `
+                    <div class="device-item">
+                        <div class="device-info">
+                            <span class="device-name">🖥️ ${device.name}</span>
+                            <span class="device-status">${device.running ? '✅ Running' : '⏸️ Stopped'}</span>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteDevice('${device.id}')">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                `).join('');
+
+                refreshStatus();
+            } catch (error) {
+                showToast('Error loading devices', 'error');
+            }
+        }
+
+        async function createDevice() {
+            const deviceType = document.getElementById('device-type').value;
+            showToast('Creating device...', 'success');
+            try {
+                const response = await fetch('/api/devices/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: deviceType })
+                });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                refreshDevices();
+            } catch (error) {
+                showToast('Error creating device', 'error');
+            }
+        }
+
+        async function deleteDevice(deviceId) {
+            if (!confirm(`Delete device_${deviceId}?`)) return;
+            showToast('Deleting device...', 'success');
+            try {
+                const response = await fetch(`/api/devices/delete/${deviceId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                refreshDevices();
+            } catch (error) {
+                showToast('Error deleting device', 'error');
+            }
+        }
+
+        async function cleanupDevices() {
+            showToast('Cleaning up stopped containers...', 'success');
+            try {
+                const response = await fetch('/api/devices/cleanup', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, 'success');
+                refreshDevices();
+            } catch (error) {
+                showToast('Error during cleanup', 'error');
+            }
+        }
+
+        // Honeypot control
+        async function startHoneypot() {
+            showToast('Starting honeypot...', 'success');
+            try {
+                const response = await fetch('/api/honeypot/start', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error starting honeypot', 'error');
+            }
+        }
+
+        async function stopHoneypot() {
+            showToast('Stopping honeypot...', 'success');
+            try {
+                const response = await fetch('/api/honeypot/stop', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error stopping honeypot', 'error');
+            }
+        }
+
+        async function viewHoneypotLogs() {
+            try {
+                const response = await fetch('/api/honeypot/logs');
+                const data = await response.json();
+                
+                const logsDisplay = document.getElementById('logs-display');
+                if (data.logs.length === 0) {
+                    logsDisplay.innerHTML = '<div class="log-entry">No attacks logged yet</div>';
+                    return;
+                }
+
+                document.getElementById('stat-attacks').textContent = data.count;
+
+                logsDisplay.innerHTML = data.logs.map(log => `
+                    <div class="log-entry">
+                        <strong>${log.timestamp}</strong> | 
+                        <span style="color: #f87171">${log.attacker_ip}</span> → 
+                        <span style="color: #fbbf24">${log.protocol}</span> | 
+                        ${log.data ? log.data.substring(0, 100) : 'No data'}
+                    </div>
+                `).join('');
+            } catch (error) {
+                showToast('Error loading logs', 'error');
+            }
+        }
+
+        // Attacker control
+        async function startAttackers() {
+            showToast('Starting DOS attackers...', 'success');
+            try {
+                const response = await fetch('/api/attackers/start', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error starting attackers', 'error');
+            }
+        }
+
+        async function stopAttackers() {
+            showToast('Stopping attackers...', 'success');
+            try {
+                const response = await fetch('/api/attackers/stop', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error stopping attackers', 'error');
+            }
+        }
+
+        // Refresh logs
+        async function refreshLogs() {
+            await viewHoneypotLogs();
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(refreshStatus, 5000);
+        setInterval(refreshDevices, 5000);
+
+        // Initial load
+        refreshStatus();
+        refreshDevices();
+    </script>
+</body>
+</html>
