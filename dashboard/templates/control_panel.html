@@ -505,6 +505,7 @@
                 <button class="nav-btn" onclick="showPage('devices')">📱 Devices</button>
                 <button class="nav-btn" onclick="showPage('honeypot')">🍯 Honeypot</button>
                 <button class="nav-btn" onclick="showPage('attackers')">💀 Attackers</button>
+                <button class="nav-btn" onclick="showPage('agent')">🤖 AI Agent</button>
                 <button class="nav-btn" onclick="showPage('logs')">📋 Logs</button>
                 <button class="nav-btn danger" onclick="confirmStopAll()">🧨 STOP ALL</button>
             </div>
@@ -1005,6 +1006,208 @@
         </div>
 
         <!-- Logs Page -->
+        <!-- ==================== AI AGENT PAGE ==================== -->
+        <div id="page-agent" class="page">
+            <header>
+                <h2>🤖 AI Security Agent</h2>
+                <p class="subtitle">Chat with AI to analyze network, manage devices, and detect threats</p>
+            </header>
+
+            <!-- Agent Status -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="agent-status-badge">
+                        <span class="status-badge status-on">READY</span>
+                    </div>
+                    <div class="stat-label">Agent Status</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="agent-tools-count">3</div>
+                    <div class="stat-label">Available Tools</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="agent-queries-count">0</div>
+                    <div class="stat-label">Queries Processed</div>
+                </div>
+            </div>
+
+            <!-- API Key Test -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔑 API Configuration</div>
+                    <button class="btn btn-primary btn-small" onclick="testAPIKey()">
+                        🧪 Test API Key
+                    </button>
+                </div>
+                <div id="api-key-info" style="padding: 15px; font-family: monospace; font-size: 0.9em;">
+                    <div style="color: #bbb;">Click "Test API Key" to verify your GLM/Anthropic configuration...</div>
+                </div>
+            </div>
+
+            <!-- Available Tools -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🛠️ Available Agent Capabilities</div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; padding: 15px;">
+                    <div style="background: rgba(52, 152, 219, 0.1); border-left: 3px solid #3498db; padding: 15px; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-chart-line" style="color: #3498db; font-size: 1.3em;"></i>
+                            <strong style="color: #3498db;">Analyze Traffic</strong>
+                        </div>
+                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
+                            Analyze network traffic, detect threats, and identify anomalies
+                        </p>
+                    </div>
+                    
+                    <div style="background: rgba(52, 152, 219, 0.1); border-left: 3px solid #3498db; padding: 15px; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-shield-alt" style="color: #3498db; font-size: 1.3em;"></i>
+                            <strong style="color: #3498db;">Security Analysis</strong>
+                        </div>
+                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
+                            Analyze network traffic for DoS attacks, port scans, and threats
+                        </p>
+                    </div>
+                    
+                    <div style="background: rgba(155, 89, 182, 0.1); border-left: 3px solid #9b59b6; padding: 15px; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-network-wired" style="color: #9b59b6; font-size: 1.3em;"></i>
+                            <strong style="color: #9b59b6;">Network Status</strong>
+                        </div>
+                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
+                            Quick overview of network health and connected devices
+                        </p>
+                    </div>
+                    
+                    <div style="background: rgba(231, 76, 60, 0.1); border-left: 3px solid #e74c3c; padding: 15px; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-route" style="color: #e74c3c; font-size: 1.3em;"></i>
+                            <strong style="color: #e74c3c;">Reroute to Honeypot</strong>
+                        </div>
+                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
+                            Isolate suspicious IPs to honeypot for containment and analysis
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">💬 Chat with AI Agent</div>
+                    <button class="btn btn-secondary btn-small" onclick="clearAgentChat()">
+                        🗑️ Clear Chat
+                    </button>
+                </div>
+                
+                <!-- Chat Messages Container -->
+                <div id="agent-chat-messages" style="
+                    background: rgba(0,0,0,0.3);
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 15px;
+                    max-height: 500px;
+                    overflow-y: auto;
+                    min-height: 300px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                ">
+                    <!-- Welcome Message -->
+                    <div class="agent-message" style="
+                        background: rgba(52, 152, 219, 0.2);
+                        border-left: 3px solid #3498db;
+                        padding: 15px;
+                        border-radius: 4px;
+                        margin-bottom: 15px;
+                    ">
+                        <div style="display: flex; align-items: start; gap: 12px;">
+                            <i class="fas fa-robot" style="color: #3498db; font-size: 1.5em; margin-top: 3px;"></i>
+                            <div style="flex: 1;">
+                                <div style="color: #3498db; font-weight: bold; margin-bottom: 8px;">AI Agent</div>
+                                <div style="color: #fff;">
+                                    👋 Hello! I'm your AI Security Analyst. I can help you:
+                                    <ul style="margin: 10px 0; padding-left: 20px;">
+                                        <li>🔍 Detect DoS/DDoS attacks and port scans</li>
+                                        <li>🛡️ Analyze network traffic for threats</li>
+                                        <li>📊 Show top IPs and protocol distribution</li>
+                                        <li>🚨 Provide actionable security recommendations</li>
+                                    </ul>
+                                    Try: <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"analyze"</code> or <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"security status"</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; gap: 10px;">
+                        <input 
+                            type="text" 
+                            id="agent-query-input" 
+                            placeholder="Ask me anything... (e.g., 'analyze traffic', 'security status', 'reroute device 192.168.6.10')"
+                            style="
+                                flex: 1;
+                                padding: 12px 15px;
+                                background: rgba(0,0,0,0.3);
+                                border: 1px solid rgba(255,255,255,0.2);
+                                border-radius: 6px;
+                                color: white;
+                                font-size: 0.95em;
+                            "
+                            onkeypress="if(event.key === 'Enter') sendAgentQuery()"
+                        />
+                        <button class="btn btn-primary" onclick="sendAgentQuery()" style="min-width: 120px;">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                    <!-- Quick Action Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-primary btn-small" onclick="quickAgentQuery('analyze traffic')">
+                            � Analyze Network
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('status')">
+                            � Security Status
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('help')">
+                            ❓ Show Commands
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Reroute Tool -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🚨 Quick Reroute to Honeypot</div>
+                </div>
+                <div style="padding: 15px;">
+                    <p style="color: #bbb; margin-bottom: 15px;">
+                        Quickly reroute a device to the isolated honeypot network for containment
+                    </p>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input 
+                            type="text" 
+                            id="quick-reroute-ip" 
+                            placeholder="Enter device IP (e.g., 192.168.6.10)"
+                            style="
+                                flex: 1;
+                                padding: 10px 15px;
+                                background: rgba(0,0,0,0.3);
+                                border: 1px solid rgba(255,255,255,0.2);
+                                border-radius: 6px;
+                                color: white;
+                            "
+                        />
+                        <button class="btn btn-danger" onclick="quickRerouteToHoneypot()">
+                            <i class="fas fa-route"></i> Reroute Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== LOGS PAGE ==================== -->
         <div id="page-logs" class="page">
             <header>
                 <h2>📋 System Logs</h2>

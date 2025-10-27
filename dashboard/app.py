@@ -11,6 +11,21 @@ import os
 from datetime import datetime
 import re
 
+# Load environment variables from MCP agent config
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    
+    # Load MCP agent .env file
+    mcp_env_path = Path(__file__).parent.parent / 'mcp_agent' / 'config' / '.env'
+    if mcp_env_path.exists():
+        load_dotenv(mcp_env_path)
+        print(f"✅ Loaded MCP agent environment from: {mcp_env_path}")
+    else:
+        print(f"⚠️ MCP agent .env not found at: {mcp_env_path}")
+except ImportError:
+    print("⚠️ python-dotenv not installed, environment variables must be set manually")
+
 app = Flask(__name__)
 CORS(app)
 
@@ -74,6 +89,52 @@ def run_cmd_command(command, cwd=None):
             'output': '',
             'error': str(e)
         }
+
+
+def local_summarize_analysis(analysis_text: str) -> str:
+    """Create a compact, human-friendly summary from the raw analysis text.
+
+    Best-effort fallback when the AI summarization API is unavailable. It
+    extracts key sections from a typical analysis report.
+    """
+    try:
+        lines = [l.strip() for l in analysis_text.splitlines() if l.strip()]
+        total_packets = None
+        for l in lines:
+            m = re.search(r'Total Packets[:\s]+(\d+)', l, re.IGNORECASE)
+            if m:
+                total_packets = m.group(1)
+                break
+
+        def extract_block(header_keywords, max_lines=6):
+            for i, ln in enumerate(lines):
+                if any(k in ln.upper() for k in header_keywords):
+                    return lines[i+1:i+1+max_lines]
+            return []
+
+        proto_block = extract_block(['PROTOCOL DISTRIBUTION'])
+        top_sources = extract_block(['TOP SOURCE', 'TOP SOURCE IPS'])
+        top_dests = extract_block(['TOP DEST', 'TOP DESTINATION'])
+        anomalies = extract_block(['ANOMALIES', 'SECURITY ANOMALIES'])
+
+        parts = []
+        if total_packets:
+            parts.append(f"Total packets: {total_packets}")
+        if proto_block:
+            parts.append("Protocol distribution: " + ", ".join(proto_block[:3]))
+        if top_sources:
+            parts.append("Top source IPs: " + ", ".join(top_sources[:3]))
+        if top_dests:
+            parts.append("Top destination IPs: " + ", ".join(top_dests[:3]))
+        if anomalies:
+            parts.append("Anomalies detected: " + "; ".join(anomalies[:5]))
+
+        if not parts:
+            return "No structured summary could be extracted from the analysis output. See raw data."
+
+        return "\n".join(parts)
+    except Exception:
+        return "Failed to generate local summary"
 
 @app.route('/')
 def index():
@@ -1512,10 +1573,430 @@ def get_network_map():
         }
     })
 
+# ==================== MCP AGENT ROUTES ====================
+
+# Global agent instance
+mcp_agent_process = None
+mcp_agent_active = False
+
+@app.route('/api/agent/status')
+def get_agent_status():
+    """Get MCP agent status"""
+    global mcp_agent_active
+    
+    # Get API key info (masked for security)
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    key_info = {
+        'configured': bool(api_key),
+        'key_preview': f"{api_key[:20]}...{api_key[-10:]}" if api_key and len(api_key) > 30 else 'Not set',
+        'length': len(api_key) if api_key else 0
+    }
+    
+    return jsonify({
+        'success': True,
+        'active': mcp_agent_active,
+        'available_tools': [
+            'analyze_traffic',
+            'list_devices',
+            'reroute_to_honeypot'
+        ],
+        'api_key_info': key_info,
+        'base_url': os.getenv('ANTHROPIC_BASE_URL', 'Not set')
+    })
+
+@app.route('/api/agent/test-key', methods=['POST'])
+def test_anthropic_key():
+    """Test the Anthropic API key with a simple request"""
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    base_url = os.getenv('ANTHROPIC_BASE_URL')
+    
+    if not api_key:
+        return jsonify({
+            'success': False,
+            'error': 'ANTHROPIC_API_KEY not set in environment'
+        })
+    
+    try:
+        from anthropic import Anthropic
+        
+        client = Anthropic(
+            api_key=api_key,
+            base_url=base_url if base_url else None
+        )
+        
+        # Simple test request
+        response = client.messages.create(
+            model="glm-4.5",
+            max_tokens=20,
+            temperature=0.1,
+            system="You are a test.",
+            messages=[{"role": "user", "content": "Say 'test successful'"}]
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'API key is valid and working',
+            'model': 'glm-4.5',
+            'response': response.content[0].text if hasattr(response, 'content') else str(response),
+            'key_preview': f"{api_key[:20]}...{api_key[-10:]}"
+        })
+        
+    except Exception as e:
+        error_str = str(e)
+        return jsonify({
+            'success': False,
+            'error': error_str,
+            'error_type': type(e).__name__,
+            'key_preview': f"{api_key[:20]}...{api_key[-10:]}",
+            'is_subscription_error': '1309' in error_str or '429' in error_str
+        })
+
+@app.route('/api/agent/query', methods=['POST'])
+def agent_query():
+    """Process user query through AI agent - simplified version without MCP"""
+    data = request.get_json()
+    query = data.get('query', '').strip().lower()
+    
+    if not query:
+        return jsonify({
+            'success': False,
+            'error': 'Query is required'
+        })
+    
+    try:
+        # Direct tool execution based on query keywords
+        response_text = ""
+        
+        # Analyze traffic
+        if any(word in query for word in ['analyze', 'traffic', 'network', 'threat', 'attack']):
+            output_path = os.path.join(NETWORK_DIR, 'analyze_output.txt')
+            analysis_data = ""
+            
+            # Try to read analyze_output.txt first
+            if os.path.exists(output_path):
+                try:
+                    with open(output_path, 'r', encoding='utf-8') as f:
+                        analysis_data = f.read().strip()
+                except Exception as e:
+                    analysis_data = ""
+            
+            # If analyze_output.txt is empty or has errors, try reading PCAP files directly
+            if not analysis_data or "Error analyzing capture" in analysis_data or "No data could be read" in analysis_data:
+                captures_dir = os.path.join(NETWORK_DIR, 'captures')
+                if os.path.exists(captures_dir):
+                    files = [f for f in os.listdir(captures_dir) if f.endswith('.pcap')]
+                    if files:
+                        # Get last 3 PCAP files
+                        sorted_files = sorted(files)
+                        last_3_files = sorted_files[-3:] if len(sorted_files) >= 3 else sorted_files
+                        
+                        try:
+                            from scapy.all import rdpcap, IP, TCP, UDP
+                            
+                            total_packets = 0
+                            all_src_ips = {}
+                            all_dst_ips = {}
+                            protocols = {'TCP': 0, 'UDP': 0, 'Other': 0}
+                            
+                            for pcap_file in last_3_files:
+                                file_path = os.path.join(captures_dir, pcap_file)
+                                if os.path.getsize(file_path) > 0:
+                                    try:
+                                        packets = rdpcap(file_path)
+                                        total_packets += len(packets)
+                                        
+                                        for pkt in packets:
+                                            if IP in pkt:
+                                                src = pkt[IP].src
+                                                dst = pkt[IP].dst
+                                                all_src_ips[src] = all_src_ips.get(src, 0) + 1
+                                                all_dst_ips[dst] = all_dst_ips.get(dst, 0) + 1
+                                                
+                                                if TCP in pkt:
+                                                    protocols['TCP'] += 1
+                                                elif UDP in pkt:
+                                                    protocols['UDP'] += 1
+                                                else:
+                                                    protocols['Other'] += 1
+                                    except:
+                                        pass
+                            
+                            # Build AGGRESSIVE analysis with threat detection
+                            if total_packets > 0:
+                                threats_detected = []
+                                critical_threats = []
+                                avg_packets = total_packets / len(all_src_ips) if all_src_ips else 0
+                                
+                                analysis_data = f"🚨 NETWORK SECURITY ANALYSIS\n"
+                                analysis_data += "=" * 70 + "\n"
+                                analysis_data += f"Analyzed Files: {', '.join(last_3_files)}\n"
+                                analysis_data += f"Total Packets: {total_packets:,}\n"
+                                analysis_data += f"Unique IPs: {len(all_src_ips)}\n"
+                                analysis_data += "=" * 70 + "\n\n"
+                                
+                                analysis_data += "📡 PROTOCOL DISTRIBUTION:\n"
+                                for proto, count in protocols.items():
+                                    if count > 0:
+                                        pct = (count / total_packets * 100)
+                                        analysis_data += f"   {proto:8s}: {count:6d} packets ({pct:5.1f}%)\n"
+                                analysis_data += "\n"
+                                
+                                analysis_data += "📤 TOP SOURCE IPs:\n"
+                                sorted_srcs = sorted(all_src_ips.items(), key=lambda x: x[1], reverse=True)[:5]
+                                for ip, count in sorted_srcs:
+                                    pct = (count / total_packets * 100)
+                                    analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
+                                analysis_data += "\n"
+                                
+                                analysis_data += "📥 TOP DESTINATION IPs:\n"
+                                sorted_dsts = sorted(all_dst_ips.items(), key=lambda x: x[1], reverse=True)[:5]
+                                for ip, count in sorted_dsts:
+                                    pct = (count / total_packets * 100)
+                                    analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
+                                analysis_data += "\n"
+                                
+                                # AGGRESSIVE THREAT DETECTION
+                                analysis_data += "🛡️  SECURITY THREAT ANALYSIS:\n"
+                                
+                                for src_ip, src_count in sorted_srcs[:10]:
+                                    pct_of_traffic = (src_count / total_packets * 100)
+                                    
+                                    if src_count > 1000 or pct_of_traffic > 50:
+                                        analysis_data += f"\n   🔴 CRITICAL THREAT: DoS/DDoS ATTACK from {src_ip}\n"
+                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of ALL traffic!)\n"
+                                        analysis_data += f"      → Attack Type: Flooding/DoS attack overwhelming the network\n"
+                                        analysis_data += f"      → ACTION REQUIRED: BLOCK THIS IP IMMEDIATELY!\n"
+                                        threats_detected.append(f"CRITICAL DoS Attack from {src_ip} ({src_count:,} packets)")
+                                        critical_threats.append(src_ip)
+                                        
+                                    elif src_count > 500 or src_count > (avg_packets * 4):
+                                        analysis_data += f"\n   🟠 HIGH THREAT: Suspicious high traffic from {src_ip}\n"
+                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of traffic)\n"
+                                        analysis_data += f"      → Likely Attack: DoS attempt or malicious bot activity\n"
+                                        analysis_data += f"      → ACTION: Reroute to honeypot for analysis or block\n"
+                                        threats_detected.append(f"HIGH: DoS attack from {src_ip} ({src_count:,} packets)")
+                                        
+                                    elif src_count > 200 or src_count > (avg_packets * 3):
+                                        analysis_data += f"\n   🟡 WARNING: Elevated traffic from {src_ip}\n"
+                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of traffic)\n"
+                                        analysis_data += f"      → Possible: Malware, compromised device, or early DoS\n"
+                                        analysis_data += f"      → ACTION: Monitor closely, investigate device\n"
+                                        threats_detected.append(f"WARNING: High traffic from {src_ip} ({src_count:,} packets)")
+                                
+                                if not threats_detected:
+                                    analysis_data += "\n   ✅ No security threats detected\n"
+                                else:
+                                    analysis_data += f"\n{'='*70}\n"
+                                    analysis_data += f"⚠️  TOTAL THREATS DETECTED: {len(threats_detected)}\n"
+                                    if critical_threats:
+                                        analysis_data += f"🔴 CRITICAL THREATS: {len(critical_threats)} (Immediate action required!)\n"
+                                    analysis_data += f"{'='*70}\n"
+                        
+                        except ImportError:
+                            analysis_data = "Scapy not installed. Cannot analyze PCAP files directly.\n"
+                            analysis_data += "Install with: pip install scapy"
+                        except Exception as e:
+                            analysis_data = f"Error reading PCAP files: {str(e)}"
+            
+            # Now process the analysis data (whether from file or PCAP)
+            if analysis_data:
+                # Use AGGRESSIVE AI cybersecurity analyst
+                if os.getenv('ANTHROPIC_API_KEY'):
+                    try:
+                        from anthropic import Anthropic
+                        client = Anthropic(
+                            api_key=os.getenv('ANTHROPIC_API_KEY'),
+                            base_url=os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
+                        )
+                        
+                        # Check if threats were detected
+                        threat_context = ""
+                        if 'CRITICAL THREAT' in analysis_data or 'HIGH THREAT' in analysis_data:
+                            threat_context = (
+                                "⚠️⚠️⚠️ CRITICAL INSTRUCTION ⚠️⚠️⚠️\n"
+                                "SECURITY THREATS DETECTED in the network data below.\n"
+                                "You MUST classify these as ATTACKS, not 'normal communication'.\n"
+                                "DO NOT dismiss or downplay these threats!\n\n"
+                            )
+                        
+                        prompt = (
+                            "🚨 YOU ARE A STRICT CYBERSECURITY ANALYST AT A SOC 🚨\n\n"
+                            f"{threat_context}"
+                            "CRITICAL RULES:\n"
+                            "1. ANY IP sending >500 packets = DoS ATTACK (not 'normal')\n"
+                            "2. ANY IP sending >1000 packets = CRITICAL THREAT\n"
+                            "3. If threats are flagged in data, REPORT THEM AS ATTACKS\n"
+                            "4. DO NOT say 'appears normal' when threats detected\n\n"
+                            "YOUR REPORT MUST INCLUDE:\n"
+                            "🚨 THREAT LEVEL: [CRITICAL/HIGH/MEDIUM/LOW]\n"
+                            "🎯 ATTACK TYPE: DoS/Port Scan/Brute-force/None\n"
+                            "💀 MALICIOUS IPs: List IPs with >500 packets as ATTACKERS\n"
+                            "🛡️ ACTIONS: Specific steps to block/mitigate\n"
+                            "⏱️ URGENCY: Critical/High/Medium/Low\n\n"
+                            "Network data:\n" + analysis_data[:3000]
+                        )
+                        
+                        ai_response = client.messages.create(
+                            model="claude-3-5-sonnet-20241022",
+                            max_tokens=2048,
+                            temperature=0.1,
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+                        
+                        response_text = ai_response.content[0].text
+                        
+                        # Add threat banner if critical threats
+                        if 'CRITICAL THREAT' in analysis_data:
+                            threat_banner = "🚨 ═══════════════════════════════════════\n"
+                            threat_banner += "🚨  SECURITY ALERT: ATTACK IN PROGRESS!  🚨\n"
+                            threat_banner += "🚨 ═══════════════════════════════════════\n\n"
+                            response_text = threat_banner + response_text
+                            
+                    except Exception as e:
+                        # Fallback to local summary
+                        err_str = str(e)
+                        fallback = local_summarize_analysis(analysis_data)
+                        response_text = (
+                            f"Network analysis available but AI summary failed: {err_str}\n\n"
+                            f"Fallback summary:\n{fallback}\n\n"
+                            f"Raw data (truncated):\n{analysis_data[:1000]}"
+                        )
+                else:
+                    response_text = f"Network Analysis:\n{analysis_data[:1000]}\n\n(Install Anthropic API key for AI-powered summaries)"
+            else:
+                response_text = "No network analysis data available. Please:\n"
+                response_text += "1. Start network monitoring\n"
+                response_text += "2. Generate some network traffic\n"
+                response_text += "3. Run the analysis tool or ask me to 'summarize pcap'"
+        
+        # Reroute device - redirect to Quick Reroute tool
+        elif 'reroute' in query:
+            import re
+            ip_match = re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', query)
+            if ip_match:
+                device_ip = ip_match.group(0)
+                response_text = f"🔀 To reroute device {device_ip} to honeypot:\n\n"
+                response_text += "Use the '🔀 Quick Reroute' button below this chat, or:\n"
+                response_text += "1. Go to the Honeypot page\n"
+                response_text += "2. Enter the device IP\n"
+                response_text += "3. Click 'Reroute to Honeypot'\n\n"
+                response_text += "This will isolate the suspicious device for analysis."
+            else:
+                response_text = "Please specify the device IP address.\nExample: 'reroute device 192.168.6.10'"
+        
+        # Help/default
+        else:
+            response_text = """🤖 Network Security AI Agent
+
+Available Commands:
+
+• **analyze** / **analyze traffic** - Full network security analysis
+  - Detects DoS/DDoS attacks
+  - Identifies suspicious IPs
+  - Shows connected devices
+  - Provides threat level and actions
+
+• **status** - Quick network status check
+
+• **security** - Security assessment
+
+• **reroute device [IP]** - Instructions to isolate device
+
+Just type naturally - I understand commands like:
+  "analyze the network"
+  "what threats do you see"
+  "check security status"
+  "analyze traffic patterns"
+
+💡 Tip: Type "analyze" for a complete security report!"""
+        
+        return jsonify({
+            'success': True,
+            'query': query,
+            'response': response_text
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/agent/reroute', methods=['POST'])
+def agent_reroute_to_honeypot():
+    """Reroute device to honeypot via agent tool"""
+    data = request.get_json()
+    device_ip = data.get('device_ip', '').strip()
+    
+    if not device_ip:
+        return jsonify({
+            'success': False,
+            'error': 'Device IP is required'
+        })
+    
+    try:
+        # Find device container by IP
+        inspect_result = run_wsl_command('docker network inspect custom_net --format "{{json .Containers}}"')
+        
+        if not inspect_result['success']:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to inspect network'
+            })
+        
+        containers = json.loads(inspect_result['output'].strip())
+        container_name = None
+        
+        for container_id, info in containers.items():
+            container_ip = info.get('IPv4Address', '').split('/')[0]
+            if container_ip == device_ip:
+                container_name = info.get('Name', '')
+                break
+        
+        if not container_name:
+            return jsonify({
+                'success': False,
+                'error': f'No container found with IP {device_ip}'
+            })
+        
+        # Disconnect from custom_net
+        disconnect_cmd = f'docker network disconnect custom_net {container_name}'
+        disconnect_result = run_wsl_command(disconnect_cmd)
+        
+        if not disconnect_result['success']:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to disconnect: {disconnect_result["error"]}'
+            })
+        
+        # Connect to honeypot network
+        connect_cmd = f'docker network connect honey_pot_honeypot_net {container_name}'
+        connect_result = run_wsl_command(connect_cmd)
+        
+        if not connect_result['success']:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to connect to honeypot: {connect_result["error"]}'
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': f'Device {container_name} ({device_ip}) rerouted to honeypot network',
+            'device': container_name,
+            'action': 'rerouted_to_honeypot'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 if __name__ == '__main__':
     clear_old_data()  # Clear old data on startup
     print("🚀 Network Security Dashboard Starting...")
     print("📊 Dashboard URL: http://localhost:5000")
     print("🔧 Control your entire network security setup from the web UI")
     print("📡 Device data receiver enabled on port 5000")
+    print("🤖 MCP AI Agent integrated - chat available in dashboard")
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1425,6 +1425,278 @@ function showNodeDetails(node) {
 
 // ===== Analytics Functions =====
 
+// ==================== AI AGENT FUNCTIONS ====================
+
+let agentQueriesCount = 0;
+
+// Send query to AI agent
+async function sendAgentQuery() {
+    const input = document.getElementById('agent-query-input');
+    const query = input.value.trim();
+    
+    if (!query) {
+        showToast('Please enter a query', 'error');
+        return;
+    }
+    
+    // Clear input
+    input.value = '';
+    
+    // Add user message to chat
+    addAgentMessage('user', query);
+    
+    // Show thinking indicator
+    const thinkingId = addAgentMessage('agent', '🤔 Thinking...', true);
+    
+    try {
+        const response = await fetch('/api/agent/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query })
+        });
+        
+        const data = await response.json();
+        
+        // Remove thinking indicator
+        removeAgentMessage(thinkingId);
+        
+        if (data.success) {
+            // Add agent response
+            addAgentMessage('agent', data.response);
+            agentQueriesCount++;
+            document.getElementById('agent-queries-count').textContent = agentQueriesCount;
+            showToast('Query processed successfully', 'success');
+        } else {
+            addAgentMessage('agent', `❌ Error: ${data.error}`);
+            showToast('Query failed', 'error');
+        }
+    } catch (error) {
+        removeAgentMessage(thinkingId);
+        addAgentMessage('agent', `❌ Error: ${error.message}`);
+        showToast('Connection error', 'error');
+    }
+}
+
+// Quick query shortcuts
+function quickAgentQuery(query) {
+    document.getElementById('agent-query-input').value = query;
+    sendAgentQuery();
+}
+
+// Add message to chat
+function addAgentMessage(role, content, isThinking = false) {
+    const chatContainer = document.getElementById('agent-chat-messages');
+    const messageId = `msg-${Date.now()}`;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.id = messageId;
+    messageDiv.className = 'agent-message';
+    
+    if (role === 'user') {
+        messageDiv.style.cssText = `
+            background: rgba(46, 204, 113, 0.2);
+            border-left: 3px solid #2ecc71;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        `;
+        messageDiv.innerHTML = `
+            <div style="display: flex; align-items: start; gap: 12px;">
+                <i class="fas fa-user" style="color: #2ecc71; font-size: 1.3em; margin-top: 3px;"></i>
+                <div style="flex: 1;">
+                    <div style="color: #2ecc71; font-weight: bold; margin-bottom: 8px;">You</div>
+                    <div style="color: #fff; white-space: pre-wrap;">${escapeHtml(content)}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        const color = isThinking ? '#f39c12' : '#3498db';
+        messageDiv.style.cssText = `
+            background: rgba(52, 152, 219, 0.2);
+            border-left: 3px solid ${color};
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        `;
+        messageDiv.innerHTML = `
+            <div style="display: flex; align-items: start; gap: 12px;">
+                <i class="fas fa-robot" style="color: ${color}; font-size: 1.3em; margin-top: 3px;"></i>
+                <div style="flex: 1;">
+                    <div style="color: ${color}; font-weight: bold; margin-bottom: 8px;">AI Agent</div>
+                    <div style="color: #fff; white-space: pre-wrap;">${formatAgentResponse(content)}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    return messageId;
+}
+
+// Remove message from chat
+function removeAgentMessage(messageId) {
+    const message = document.getElementById(messageId);
+    if (message) {
+        message.remove();
+    }
+}
+
+// Format agent response with syntax highlighting
+function formatAgentResponse(text) {
+    // Escape HTML first
+    let formatted = escapeHtml(text);
+    
+    // Highlight IP addresses
+    formatted = formatted.replace(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/g, 
+        '<code style="background: rgba(52,152,219,0.3); padding: 2px 6px; border-radius: 3px; color: #3498db;">$1</code>');
+    
+    // Highlight device names
+    formatted = formatted.replace(/device_\w+/gi, 
+        '<code style="background: rgba(46,204,113,0.3); padding: 2px 6px; border-radius: 3px; color: #2ecc71;">$&</code>');
+    
+    // Highlight threats/attacks
+    formatted = formatted.replace(/\b(threat|attack|malicious|suspicious|anomaly|intrusion)\b/gi, 
+        '<span style="color: #e74c3c; font-weight: bold;">$&</span>');
+    
+    return formatted;
+}
+
+// Clear chat history
+function clearAgentChat() {
+    const chatContainer = document.getElementById('agent-chat-messages');
+    const welcomeMsg = chatContainer.querySelector('.agent-message');
+    chatContainer.innerHTML = '';
+    if (welcomeMsg) {
+        chatContainer.appendChild(welcomeMsg.cloneNode(true));
+    }
+    agentQueriesCount = 0;
+    document.getElementById('agent-queries-count').textContent = '0';
+    showToast('Chat cleared', 'success');
+}
+
+// Test API key
+async function testAPIKey() {
+    const infoDiv = document.getElementById('api-key-info');
+    infoDiv.innerHTML = '<div style="color: #f39c12;"><i class="fas fa-spinner fa-spin"></i> Testing API key...</div>';
+    
+    try {
+        const response = await fetch('/api/agent/test-key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            infoDiv.innerHTML = `
+                <div style="color: #2ecc71;">
+                    <div style="margin-bottom: 10px;"><i class="fas fa-check-circle"></i> <strong>API Key Valid!</strong></div>
+                    <div style="color: #bbb; font-size: 0.9em;">
+                        <div><strong>Model:</strong> ${data.model}</div>
+                        <div><strong>Key:</strong> ${data.key_preview}</div>
+                        <div><strong>Test Response:</strong> "${data.response}"</div>
+                    </div>
+                </div>
+            `;
+            showToast('API key is working correctly', 'success');
+        } else {
+            const isSubscriptionError = data.is_subscription_error;
+            const errorColor = isSubscriptionError ? '#e67e22' : '#e74c3c';
+            
+            infoDiv.innerHTML = `
+                <div style="color: ${errorColor};">
+                    <div style="margin-bottom: 10px;">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        <strong>${isSubscriptionError ? 'Subscription Issue' : 'API Key Error'}</strong>
+                    </div>
+                    <div style="color: #bbb; font-size: 0.9em;">
+                        <div><strong>Key:</strong> ${data.key_preview || 'Not set'}</div>
+                        <div><strong>Error:</strong> ${data.error}</div>
+                        ${isSubscriptionError ? `
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(230, 126, 34, 0.2); border-left: 3px solid #e67e22; border-radius: 4px;">
+                                <strong>Action Required:</strong><br>
+                                1. Renew subscription at <a href="https://z.ai/subscribe" target="_blank" style="color: #3498db;">https://z.ai/subscribe</a><br>
+                                2. Update .env file if you have a new key<br>
+                                3. Restart the dashboard to reload the key
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            showToast(isSubscriptionError ? 'Subscription expired or inactive' : 'API key test failed', 'error');
+        }
+    } catch (error) {
+        infoDiv.innerHTML = `
+            <div style="color: #e74c3c;">
+                <div style="margin-bottom: 10px;"><i class="fas fa-times-circle"></i> <strong>Connection Error</strong></div>
+                <div style="color: #bbb; font-size: 0.9em;">
+                    <div><strong>Error:</strong> ${error.message}</div>
+                    <div style="margin-top: 5px;">Make sure the dashboard is running and connected to the internet.</div>
+                </div>
+            </div>
+        `;
+        showToast('Failed to test API key', 'error');
+    }
+}
+
+// Quick reroute to honeypot
+async function quickRerouteToHoneypot() {
+    const input = document.getElementById('quick-reroute-ip');
+    const deviceIp = input.value.trim();
+    
+    if (!deviceIp) {
+        showToast('Please enter a device IP', 'error');
+        return;
+    }
+    
+    // Validate IP format
+    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipPattern.test(deviceIp)) {
+        showToast('Invalid IP address format', 'error');
+        return;
+    }
+    
+    if (!confirm(`Reroute device ${deviceIp} to honeypot network?\n\nThis will isolate the device from the main network.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/agent/reroute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ device_ip: deviceIp })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message, 'success');
+            input.value = '';
+            
+            // Add to chat
+            addAgentMessage('agent', `✅ Successfully rerouted device ${data.device} (${deviceIp}) to honeypot network`);
+            
+            // Refresh network map and honeypot page
+            refreshNetworkMap();
+            refreshReroutes();
+        } else {
+            showToast(`Reroute failed: ${data.error}`, 'error');
+            addAgentMessage('agent', `❌ Failed to reroute ${deviceIp}: ${data.error}`);
+        }
+    } catch (error) {
+        showToast('Connection error', 'error');
+        addAgentMessage('agent', `❌ Error: ${error.message}`);
+    }
+}
+
 // Auto-refresh
 setInterval(() => {
     refreshStatus();

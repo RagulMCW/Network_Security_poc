@@ -1,45 +1,7 @@
 Analyzing latest capture...
-File: capture_20251016_115855.pcap
-============================================================
-NETWORK SECURITY ANALYSIS REPORT
-============================================================
-File: captures\capture_20251016_115855.pcap
-Total Packets: 1493
-
-PROTOCOL DISTRIBUTION:
-     TCP: 1493 packets (100.0%)
-
-TOP SOURCE IPs:
-    192.168.6.133: 838 packets
-    192.168.6.131: 623 packets
-     192.168.6.19:  16 packets
-     192.168.6.18:  16 packets
-
-TOP DESTINATION IPs:
-    192.168.6.131: 870 packets
-    192.168.6.133: 599 packets
-     192.168.6.19:  12 packets
-     192.168.6.18:  12 packets
-
-TOP CONVERSATIONS:
-  192.168.6.133 -> 192.168.6.131: 838 packets
-  192.168.6.131 -> 192.168.6.133: 599 packets
-  192.168.6.19 -> 192.168.6.131: 16 packets
-  192.168.6.18 -> 192.168.6.131: 16 packets
-  192.168.6.131 -> 192.168.6.19: 12 packets
-
-SECURITY ANOMALIES DETECTED:
-
-    HIGH SEVERITY:
-    - POTENTIAL SYN FLOOD
-       ATTACKER IP: 192.168.6.133
-       Target IP: 192.168.6.131
-      SYN packets: 124
-      SYN-ACK packets: 0
-      Ratio: 124.0:1
-      All attackers: 192.168.6.133 (120 SYNs), 192.168.6.19 (2 SYNs), 192.168.6.18 (2 SYNs)
-
-============================================================
+File: capture_20251027_100035.pcap
+Error analyzing capture file: 'EDecimal' object cannot be interpreted as an integer
 
 ---
+WARNING: No libpcap provider available ! pcap won't be used
 WARNING: No libpcap provider available ! pcap won't be used
