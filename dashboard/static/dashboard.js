@@ -41,6 +41,7 @@ function showPage(pageName) {
         refreshDevices();
     } else if (pageName === 'honeypot') {
         refreshHoneypotStats();
+        refreshReroutes();  // Also refresh isolated devices list
     } else if (pageName === 'logs') {
         refreshDeviceData();
     }
@@ -148,43 +149,93 @@ async function deleteNetwork() {
 // Device management
 async function refreshDevices() {
     try {
-        const response = await fetch('/api/devices/list');
+        // Use /api/status to get per-network device information
+        const response = await fetch('/api/status');
         const data = await response.json();
 
         const container = document.getElementById('devices-container');
-        
-        if (data.devices.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📱</div>
-                    <div class="empty-state-text">No devices yet. Create your first device above!</div>
-                </div>
-            `;
-            return;
+
+        // Build professional production and honeypot sections
+        const prod = data.production_devices || data.production_devices === undefined ? (data.production_devices || []) : [];
+        const honeypot = data.honeypot && data.honeypot.devices ? data.honeypot.devices : (data.honeypot_devices || []);
+
+        let html = '';
+        html += `<div class="grid">`;
+
+        // Production Network Column
+        html += `<div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🌐 Production Network — custom_net (192.168.6.0/24)</div>
+                        <span class="status-badge">${prod.length} Nodes</span>
+                    </div>
+                    <div style="padding: 15px;">
+                        <div class="device-grid">`;
+
+        if (prod.length === 0) {
+            html += `<div style="color: #6b7280; padding: 20px;">No active devices on production network</div>`;
+        } else {
+            prod.forEach((d, idx) => {
+                const name = d.name || 'Device';
+                const ip = d.ip || 'N/A';
+                html += `
+                    <div class="device-card">
+                        <div class="device-header">
+                            <div>
+                                <div class="device-name">� ${escapeHtml(name)}</div>
+                                <div class="device-type">IP: ${ip}</div>
+                            </div>
+                        </div>
+                        <div class="device-info">
+                            <div><strong>Status:</strong> ${escapeHtml(d.status || 'Unknown')}</div>
+                            <div><strong>Image:</strong> ${escapeHtml(d.image || 'N/A')}</div>
+                            <div><strong>Networks:</strong> ${escapeHtml((d.networks || []).join(', ') || 'N/A')}</div>
+                        </div>
+                    </div>`;
+            });
         }
 
-        container.innerHTML = `<div class="device-grid">${data.devices.map(device => `
-            <div class="device-card">
-                <div class="device-header">
-                    <div>
-                        <div class="device-name">🖥️ ${device.name}</div>
-                        <span class="device-type">${device.id}</span>
+        html += `</div></div></div>`;
+
+        // Honeypot Column
+        html += `<div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🍯 Honeypot Network — honeypot_net (192.168.7.0/24)</div>
+                        <span class="status-badge">${honeypot.length} Isolated</span>
                     </div>
-                </div>
-                <div class="device-info">
-                    <div><strong>Status:</strong> ${device.running ? '✅ Running' : '⏸️ Stopped'}</div>
-                    <div><strong>Container:</strong> ${device.container_id.substring(0, 12)}</div>
-                </div>
-                <div class="device-actions">
-                    <button class="btn btn-warning btn-small" onclick="viewDeviceLogs('${device.name}')">
-                        📋 Logs
-                    </button>
-                    <button class="btn btn-danger btn-small" onclick="deleteDevice('${device.id}')">
-                        🗑️ Delete
-                    </button>
-                </div>
-            </div>
-        `).join('')}</div>`;
+                    <div style="padding: 15px;">
+                        <div class="device-grid">`;
+
+        if (honeypot.length === 0) {
+            html += `<div style="color: #6b7280; padding: 20px;">No devices currently isolated</div>`;
+        } else {
+            honeypot.forEach((d, idx) => {
+                const name = d.name || 'Isolated Device';
+                const ip = d.ip || 'N/A';
+                html += `
+                    <div class="device-card" style="border-left: 4px solid #fb923c;">
+                        <div class="device-header">
+                            <div>
+                                <div class="device-name">⚠️ ${escapeHtml(name)}</div>
+                                <div class="device-type">Isolated</div>
+                            </div>
+                        </div>
+                        <div class="device-info">
+                            <div><strong>IP:</strong> ${ip}</div>
+                            <div><strong>Status:</strong> ${escapeHtml(d.status || 'Unknown')}</div>
+                            <div><strong>Image:</strong> ${escapeHtml(d.image || 'N/A')}</div>
+                        </div>
+                        <div class="device-actions">
+                            <button class="btn btn-success btn-small" onclick="restoreDevice('${escapeHtml(d.name)}')">✅ Restore to Network</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        html += `</div></div></div>`;
+
+        html += `</div>`; // grid
+
+        container.innerHTML = html;
 
         refreshStatus();
     } catch (error) {
@@ -235,6 +286,32 @@ async function cleanupDevices() {
         refreshDevices();
     } catch (error) {
         showToast('Error during cleanup', 'error');
+    }
+}
+
+// Restore an isolated honeypot device back to production network
+async function restoreDevice(containerName) {
+    if (!confirm(`Restore ${containerName} to production network?`)) return;
+    showToast(`Restoring ${containerName}...`, 'success');
+    try {
+        const response = await fetch('/api/honeypot/remove_reroute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ container_name: containerName })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(data.message || 'Restored', 'success');
+            setTimeout(() => {
+                refreshDevices();
+                refreshStatus();
+            }, 1000);
+        } else {
+            showToast(data.message || 'Failed to restore', 'error');
+        }
+    } catch (error) {
+        console.error('Error restoring device:', error);
+        showToast('Error restoring device', 'error');
     }
 }
 
@@ -769,21 +846,50 @@ async function refreshReroutes() {
             
             if (reroutes.length > 0) {
                 listDiv.innerHTML = reroutes.map(reroute => `
-                    <div style="display: flex; justify-content: space-between; align-items: center; 
-                                padding: 10px; margin: 5px 0; background: #f9fafb; border-radius: 5px; border-left: 3px solid #fb923c;">
-                        <div>
-                            <strong style="color: #fb923c;">🎯 ${reroute.container}</strong>
-                            <div style="font-size: 12px; color: #6b7280; margin-top: 3px;">
-                                IP: ${reroute.ip} → Honeypot Network (${reroute.network})
+                    <div style="
+                        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(251, 146, 60, 0.1) 100%);
+                        border: 1px solid rgba(251, 146, 60, 0.3);
+                        border-left: 4px solid #ef4444;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-bottom: 12px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <span style="font-size: 1.5em;">🚨</span>
+                                    <strong style="color: #dc2626; font-size: 1.1em;">${reroute.container}</strong>
+                                    <span style="
+                                        background: #ef4444;
+                                        color: white;
+                                        padding: 2px 8px;
+                                        border-radius: 12px;
+                                        font-size: 0.75em;
+                                        font-weight: bold;
+                                    ">ISOLATED</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 0.9em; color: #4b5563; margin-left: 35px;">
+                                    <span>📍 Original IP:</span>
+                                    <strong>${reroute.ip}</strong>
+                                    <span>🍯 Current Network:</span>
+                                    <strong style="color: #fb923c;">${reroute.network} (honeypot_net)</strong>
+                                    <span>⚠️ Status:</span>
+                                    <strong style="color: #ef4444;">Isolated - Cannot reach main network</strong>
+                                </div>
                             </div>
+                            <button 
+                                class="btn btn-success btn-small" 
+                                onclick="removeReroute('${reroute.container}')"
+                                style="min-width: 120px; margin-left: 15px;"
+                            >
+                                ✅ Restore to Network
+                            </button>
                         </div>
-                        <button class="btn btn-danger btn-small" onclick="removeReroute('${reroute.container}')">
-                            ❌ Remove
-                        </button>
                     </div>
                 `).join('');
             } else {
-                listDiv.innerHTML = '<div style="color: #6b7280;">No containers currently rerouted to honeypot</div>';
+                listDiv.innerHTML = '<div style="color: #6b7280; text-align: center; padding: 20px;">✅ No devices isolated. All devices on main network.</div>';
             }
             
             // Show recent log entries
@@ -806,11 +912,16 @@ async function refreshReroutes() {
 }
 
 async function removeReroute(containerName) {
-    if (!confirm(`Move ${containerName} back to main network?\n\nContainer will communicate normally again.`)) {
+    if (!confirm(`🔄 Restore ${containerName} to Main Network?\n\n` +
+                 `This will:\n` +
+                 `✅ Disconnect from honeypot_net (192.168.7.0/24)\n` +
+                 `✅ Reconnect to custom_net (192.168.6.0/24)\n` +
+                 `✅ Resume normal network communication\n\n` +
+                 `Continue?`)) {
         return;
     }
     
-    showToast(`Restoring ${containerName} to main network...`, 'success');
+    showToast(`🔄 Restoring ${containerName} to main network...`, 'success');
     
     try {
         const response = await fetch('/api/honeypot/remove_reroute', {
@@ -822,13 +933,13 @@ async function removeReroute(containerName) {
         const data = await response.json();
         
         if (data.success) {
-            showToast(`✅ ${containerName} restored to main network`, 'success');
+            showToast(`✅ ${containerName} successfully restored to main network!`, 'success');
             setTimeout(refreshReroutes, 1000);
         } else {
-            showToast(`Failed to restore: ${data.message}`, 'error');
+            showToast(`❌ Failed to restore: ${data.message}`, 'error');
         }
     } catch (error) {
-        showToast('Error restoring container', 'error');
+        showToast('❌ Error restoring container', 'error');
         console.error('Remove reroute error:', error);
     }
 }
@@ -1399,24 +1510,76 @@ function showNodeDetails(node) {
     
     let html = `
         <div style="padding: 15px; background: #f3f4f6; border-radius: 8px; margin-bottom: 10px;">
-            <h4 style="margin: 0 0 10px 0; color: #1f2937;">${escapeHtml(node.name)}</h4>
+            <h4 style="margin: 0 0 10px 0; color: #1f2937; display: flex; align-items: center; gap: 8px;">
+                ${node.type === 'attacker' ? '<i class="fas fa-skull-crossbones" style="color: #ef4444;"></i>' : ''}
+                ${node.type === 'device' ? '<i class="fas fa-mobile-alt" style="color: #3b82f6;"></i>' : ''}
+                ${node.type === 'gateway' ? '<i class="fas fa-network-wired" style="color: #10b981;"></i>' : ''}
+                ${node.type === 'honeypot' ? '<i class="fas fa-shield-alt" style="color: #f59e0b;"></i>' : ''}
+                ${node.type === 'monitor' ? '<i class="fas fa-eye" style="color: #8b5cf6;"></i>' : ''}
+                ${escapeHtml(node.name)}
+            </h4>
             <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9em;">
                 <strong>ID:</strong> <span>${escapeHtml(node.id)}</span>
                 <strong>Type:</strong> <span style="text-transform: capitalize;">${escapeHtml(node.type)}</span>
-                <strong>IP Address:</strong> <span>${escapeHtml(node.ip)}</span>
-                <strong>Status:</strong> <span style="color: ${node.status === 'running' ? '#10b981' : '#6b7280'};">${escapeHtml(node.status.toUpperCase())}</span>
+                <strong>IP Address:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 3px;">${escapeHtml(node.ip)}</span>
+                <strong>Status:</strong> <span style="color: ${node.status === 'running' ? '#10b981' : '#6b7280'}; font-weight: bold;">${escapeHtml(node.status.toUpperCase())}</span>
     `;
     
     if (node.container_id) {
-        html += `<strong>Container ID:</strong> <span>${escapeHtml(node.container_id)}</span>`;
+        html += `<strong>Container ID:</strong> <span style="font-family: monospace; font-size: 0.85em;">${escapeHtml(node.container_id)}</span>`;
+    }
+    
+    // Show network information
+    if (node.on_honeypot_network) {
+        html += `<strong>Network:</strong> <span style="color: #f59e0b; font-weight: bold;">🍯 Honeypot Network (ISOLATED)</span>`;
+        if (node.honeypot_ip) {
+            html += `<strong>Honeypot IP:</strong> <span style="font-family: monospace; background: #fef3c7; padding: 2px 6px; border-radius: 3px;">${escapeHtml(node.honeypot_ip)}</span>`;
+        }
+    } else if (node.type !== 'honeypot_network' && node.type !== 'gateway') {
+        html += `<strong>Network:</strong> <span style="color: #10b981;">📡 Production Network (custom_net)</span>`;
     }
     
     if (node.last_seen) {
         html += `<strong>Last Seen:</strong> <span>${escapeHtml(node.last_seen)}</span>`;
     }
     
-    html += `
+    // Show attacker-specific information
+    if (node.type === 'attacker' && node.attacker_info) {
+        html += `
             </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #ef4444;">
+                <h5 style="margin: 0 0 10px 0; color: #ef4444; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-exclamation-triangle"></i> Attacker Information
+                </h5>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9em;">
+                    <strong>Attack Type:</strong> <span style="color: #ef4444; font-weight: bold;">${escapeHtml(node.attacker_info.attack_type)}</span>
+                    <strong>Target:</strong> <span>${escapeHtml(node.attacker_info.target)}</span>
+                    <strong>Threat Level:</strong> 
+                    <span style="
+                        background: ${node.attacker_info.threat_level === 'CRITICAL' ? '#dc2626' : node.attacker_info.threat_level === 'HIGH' ? '#ef4444' : '#f59e0b'}; 
+                        color: white; 
+                        padding: 2px 8px; 
+                        border-radius: 3px; 
+                        font-weight: bold;
+                        font-size: 0.85em;
+                    ">${escapeHtml(node.attacker_info.threat_level)}</span>
+                    <strong>Description:</strong> <span>${escapeHtml(node.attacker_info.description)}</span>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #fef2f2; border-left: 3px solid #ef4444; border-radius: 4px;">
+                <div style="color: #991b1b; font-size: 0.85em;">
+                    <strong>⚠️ Security Notice:</strong> This is a simulated attacker for testing network security responses. 
+                    ${node.on_honeypot_network ? '<br><strong style="color: #16a34a;">✅ ISOLATED:</strong> Device has been moved to honeypot network and cannot harm production systems.' : '<br><strong style="color: #dc2626;">⚠️ ACTIVE:</strong> This attacker is currently on the production network.'}
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            </div>
+        `;
+    }
+    
+    html += `
         </div>
     `;
     

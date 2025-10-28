@@ -1,3 +1,11 @@
 [2025-10-27 12:08:26] Rerouted hping3-attacker (192.168.6.132) to honey_pot_honeypot_net (192.168.7.2)
 [2025-10-27 15:30:39] Rerouted hping3-attacker (192.168.6.132) to honey_pot_honeypot_net (192.168.7.2)
 [2025-10-27 15:44:09] Rerouted hping3-attacker (192.168.6.132) to honey_pot_honeypot_net (192.168.7.2)
+[2025-10-27 17:42:03] AUTO-REROUTED: hping3-attacker (192.168.6.132) to honeypot - DoS Attack Detected
+[2025-10-27 17:53:20] AUTO-REROUTED: net-monitor-wan (192.168.6.131) to honeypot - DoS Attack Detected
+[2025-10-28 12:20:57] QUICK-REROUTE: net-monitor-wan (192.168.6.131) to honeypot
+[2025-10-28 12:22:03] Rerouted hping3-attacker (192.168.6.132) to honeypot_net (192.168.7.3)
+[2025-10-28 12:26:55] Restored hping3-attacker to custom_net (192.168.6.5)
+[2025-10-28 12:36:57] Rerouted hping3-attacker (192.168.6.132) to honeypot_net (192.168.7.2)
+[2025-10-28 12:42:17] Restored hping3-attacker to custom_net (192.168.6.2)
+{"timestamp": "2025-10-28T15:26:38.560999", "device_id": "hping3-attacker", "container_name": "hping3-attacker", "reason": "DoS Attack from 192.168.6.132", "new_ip": "192.168.7.2", "network": "honeypot_net"}

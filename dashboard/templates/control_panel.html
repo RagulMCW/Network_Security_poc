@@ -590,32 +590,13 @@
                 </div>
             </div>
 
-            <!-- Important Info Box -->
-            <div class="card" style="margin-top: 20px; background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);">
-                <div class="card-header">
-                    <div class="card-title">⚠️ Important: Device Connection Info</div>
-                </div>
-                <div style="color: white; line-height: 1.6;">
-                    <p style="margin-bottom: 10px;"><strong>Dashboard is listening on:</strong></p>
-                    <ul style="margin-left: 20px; margin-bottom: 15px;">
-                        <li>Windows: <code style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 4px;">http://localhost:5000</code></li>
-                        <li>Docker Network: <code style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 4px;">http://192.168.6.1:5000</code></li>
-                    </ul>
-                    <p style="margin-bottom: 10px;"><strong>If devices show "Connection refused":</strong></p>
-                    <ol style="margin-left: 20px;">
-                        <li>Make sure this dashboard is running BEFORE creating devices</li>
-                        <li>Restart the dashboard: <code style="background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 4px;">restart_dashboard.bat</code></li>
-                        <li>Check Windows Firewall is allowing port 5000</li>
-                        <li>Recreate the device after dashboard is fully running</li>
-                    </ol>
-                </div>
-            </div>
+
         </div>
 
         <!-- Network Map Page -->
         <div id="page-network-map" class="page">
             <header>
-                <h2>🗺️ Network Topology Map</h2>
+                <h2>Network Topology Map</h2>
                 <p class="subtitle">Live visualization of all connected devices and containers (auto-refresh every 5s)</p>
             </header>
 
@@ -709,8 +690,10 @@
                         <span class="status-badge" id="monitor-status">OFF</span>
                     </div>
                     <p style="color: #6b7280; margin-bottom: 15px;">
-                        Container: <strong>monitor (net-monitor-wan)</strong><br>
-                        IP: <strong>192.168.6.131</strong><br>
+                        <strong>🖥️ Network Monitor Server</strong><br>
+                        Container: <strong>net-monitor-wan</strong><br>
+                        Server IP: <strong>192.168.6.131:5000</strong><br>
+                        Role: <em>Packet Capture & Device Management API</em><br>
                         Flask API: <a href="http://localhost:5002" target="_blank" style="color: #667eea;">localhost:5002</a><br>
                         HAProxy: <a href="http://localhost:8082" target="_blank" style="color: #667eea;">localhost:8082</a>
                     </p>
@@ -732,7 +715,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">📊 Server Info</div>
+                        <div class="card-title">Server Information</div>
                     </div>
                     <div style="color: #333; font-size: 0.95em;">
                         <p style="margin: 10px 0;"><strong>Purpose:</strong> Network packet capture and analysis</p>
@@ -777,7 +760,7 @@
         <!-- Devices Page -->
         <div id="page-devices" class="page">
             <header>
-                <h2>📱 Device Management</h2>
+                <h2>Device Management</h2>
                 <p class="subtitle">Create and manage virtual network devices</p>
             </header>
 
@@ -812,7 +795,7 @@
         <!-- Honeypot Page -->
         <div id="page-honeypot" class="page">
             <header>
-                <h2>🍯 Beelzebub AI Honeypot</h2>
+                <h2>Beelzebub AI Honeypot</h2>
                 <p class="subtitle">AI-powered interactive honeypot with LLM integration</p>
             </header>
 
@@ -894,14 +877,20 @@
                 </div>
 
                 <!-- Rerouted IPs List -->
-                <div class="card-header" style="margin-top: 15px;">
-                    <div class="card-title">📋 Currently Rerouted IPs</div>
+                <div class="card-header" style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #e5e7eb;">
+                    <div class="card-title">� Devices Isolated in Honeypot</div>
                     <button class="btn btn-warning btn-small" onclick="refreshReroutes()">
                         🔄 Refresh
                     </button>
                 </div>
-                <div id="rerouted-ips-list" style="margin-top: 10px;">
-                    <div style="color: #6b7280;">No IPs currently rerouted</div>
+                <div style="margin: 15px; padding: 10px; background: rgba(251, 146, 60, 0.1); border-left: 3px solid #fb923c; border-radius: 4px;">
+                    <div style="font-size: 0.9em; color: #ea580c;">
+                        <strong>⚠️ Isolated Devices:</strong> These devices have been rerouted from <code>custom_net</code> to <code>honeypot_net</code>. 
+                        They can only communicate with the honeypot (192.168.7.100). Click "Remove" to restore them to the main network.
+                    </div>
+                </div>
+                <div id="rerouted-ips-list" style="margin: 15px;">
+                    <div style="color: #6b7280; text-align: center; padding: 20px;">No devices currently isolated in honeypot</div>
                 </div>
             </div>
 
@@ -1009,7 +998,7 @@
         <!-- ==================== AI AGENT PAGE ==================== -->
         <div id="page-agent" class="page">
             <header>
-                <h2>🤖 AI Security Agent</h2>
+                <h2>AI Security Agent</h2>
                 <p class="subtitle">Chat with AI to analyze network, manage devices, and detect threats</p>
             </header>
 
@@ -1019,76 +1008,15 @@
                     <div class="stat-value" id="agent-status-badge">
                         <span class="status-badge status-on">READY</span>
                     </div>
-                    <div class="stat-label">Agent Status</div>
+                    <div class="stat-label">MCP Agent Status</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="agent-tools-count">3</div>
-                    <div class="stat-label">Available Tools</div>
+                    <div class="stat-value" id="agent-tools-count">2</div>
+                    <div class="stat-label">Autonomous Tools</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="agent-queries-count">0</div>
                     <div class="stat-label">Queries Processed</div>
-                </div>
-            </div>
-
-            <!-- API Key Test -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">🔑 API Configuration</div>
-                    <button class="btn btn-primary btn-small" onclick="testAPIKey()">
-                        🧪 Test API Key
-                    </button>
-                </div>
-                <div id="api-key-info" style="padding: 15px; font-family: monospace; font-size: 0.9em;">
-                    <div style="color: #bbb;">Click "Test API Key" to verify your GLM/Anthropic configuration...</div>
-                </div>
-            </div>
-
-            <!-- Available Tools -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">🛠️ Available Agent Capabilities</div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; padding: 15px;">
-                    <div style="background: rgba(52, 152, 219, 0.1); border-left: 3px solid #3498db; padding: 15px; border-radius: 4px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <i class="fas fa-chart-line" style="color: #3498db; font-size: 1.3em;"></i>
-                            <strong style="color: #3498db;">Analyze Traffic</strong>
-                        </div>
-                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
-                            Analyze network traffic, detect threats, and identify anomalies
-                        </p>
-                    </div>
-                    
-                    <div style="background: rgba(52, 152, 219, 0.1); border-left: 3px solid #3498db; padding: 15px; border-radius: 4px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <i class="fas fa-shield-alt" style="color: #3498db; font-size: 1.3em;"></i>
-                            <strong style="color: #3498db;">Security Analysis</strong>
-                        </div>
-                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
-                            Analyze network traffic for DoS attacks, port scans, and threats
-                        </p>
-                    </div>
-                    
-                    <div style="background: rgba(155, 89, 182, 0.1); border-left: 3px solid #9b59b6; padding: 15px; border-radius: 4px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <i class="fas fa-network-wired" style="color: #9b59b6; font-size: 1.3em;"></i>
-                            <strong style="color: #9b59b6;">Network Status</strong>
-                        </div>
-                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
-                            Quick overview of network health and connected devices
-                        </p>
-                    </div>
-                    
-                    <div style="background: rgba(231, 76, 60, 0.1); border-left: 3px solid #e74c3c; padding: 15px; border-radius: 4px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <i class="fas fa-route" style="color: #e74c3c; font-size: 1.3em;"></i>
-                            <strong style="color: #e74c3c;">Reroute to Honeypot</strong>
-                        </div>
-                        <p style="color: #bbb; font-size: 0.9em; margin: 0;">
-                            Isolate suspicious IPs to honeypot for containment and analysis
-                        </p>
-                    </div>
                 </div>
             </div>
 
@@ -1123,16 +1051,20 @@
                         <div style="display: flex; align-items: start; gap: 12px;">
                             <i class="fas fa-robot" style="color: #3498db; font-size: 1.5em; margin-top: 3px;"></i>
                             <div style="flex: 1;">
-                                <div style="color: #3498db; font-weight: bold; margin-bottom: 8px;">AI Agent</div>
+                                <div style="color: #3498db; font-weight: bold; margin-bottom: 8px;">Autonomous AI Security Analyst</div>
                                 <div style="color: #fff;">
-                                    👋 Hello! I'm your AI Security Analyst. I can help you:
+                                    👋 Hello! I'm your <strong>Autonomous MCP Agent</strong>. I can:
                                     <ul style="margin: 10px 0; padding-left: 20px;">
-                                        <li>🔍 Detect DoS/DDoS attacks and port scans</li>
-                                        <li>🛡️ Analyze network traffic for threats</li>
-                                        <li>📊 Show top IPs and protocol distribution</li>
-                                        <li>🚨 Provide actionable security recommendations</li>
+                                        <li>🔍 Analyze PCAP captures with Scapy (last 3 files)</li>
+                                        <li>🛡️ Detect DoS/DDoS attacks, port scans, brute-force</li>
+                                        <li>� Show device info, IPs, protocols, and traffic stats</li>
+                                        <li>� <strong>AUTO-ISOLATE</strong> threats to honeypot (no approval needed!)</li>
+                                        <li>🤖 Use Claude AI for expert threat analysis</li>
                                     </ul>
-                                    Try: <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"analyze"</code> or <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"security status"</code>
+                                    <div style="margin-top: 10px; padding: 10px; background: rgba(46, 204, 113, 0.2); border-radius: 4px;">
+                                        <strong>Try:</strong> <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"analyze"</code> 
+                                        or <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"security status"</code>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1163,11 +1095,14 @@
                     </div>
                     <!-- Quick Action Buttons -->
                     <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-                        <button class="btn btn-primary btn-small" onclick="quickAgentQuery('analyze traffic')">
-                            � Analyze Network
+                        <button class="btn btn-primary btn-small" onclick="quickAgentQuery('analyze network traffic')">
+                            🔍 Analyze Network
                         </button>
-                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('status')">
-                            � Security Status
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('security status')">
+                            🛡️ Security Status
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('what devices are connected')">
+                            🖥️ Show Devices
                         </button>
                         <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('help')">
                             ❓ Show Commands

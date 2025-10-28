@@ -6,6 +6,11 @@ echo ========================================
 echo  Starting Dashboard in WSL
 echo ========================================
 echo.
+echo.
+echo ========================================
+echo  Starting Dashboard in WSL
+echo ========================================
+echo.
 echo This will make the dashboard accessible to:
 echo   - Docker devices at http://192.168.6.1:5000
 echo   - Your browser at http://localhost:5000

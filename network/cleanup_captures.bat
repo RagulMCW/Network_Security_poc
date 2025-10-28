@@ -1,38 +1,24 @@
 @echo off
 REM Cleanup Old Capture Files
-REM Keeps only the most recent N capture files
-REM Usage: cleanup_captures.bat [count]
-REM Example: cleanup_captures.bat 5
+REM Keeps only the most recent 4 capture files automatically
+REM Usage: cleanup_captures.bat
 REM ========================================
 
 setlocal
 
-REM Get keep count from argument (default to 5)
-set KEEP_COUNT=%1
-if "%KEEP_COUNT%"=="" set KEEP_COUNT=5
+set KEEP_COUNT=4
 
 echo ========================================
 echo Capture Files Cleanup
 echo ========================================
-echo Keeping last %KEEP_COUNT% files...
+echo Keeping last %KEEP_COUNT% files only...
 echo.
 
-REM Activate virtual environment
-call E:\nos\.venv\Scripts\activate.bat 2>nul
-if errorlevel 1 (
-    echo ERROR: Failed to activate virtual environment
-    exit /b 1
-)
-
-REM Navigate to network directory
-cd /d E:\nos\Network_Security_poc\network
-
-REM Run cleanup
-python scripts\analyze_capture.py --cleanup --keep %KEEP_COUNT%
-
-REM Deactivate
-call deactivate 2>nul
+REM Use WSL to clean up PCAP files
+wsl bash -c "cd /mnt/e/nos/Network_Security_poc/network/captures && echo 'Current PCAP files:' && ls -1t *.pcap 2>/dev/null | head -10 && echo '' && TOTAL=$(ls -1 *.pcap 2>/dev/null | wc -l) && echo \"Total files: ${TOTAL}\" && if [ ${TOTAL} -gt %KEEP_COUNT% ]; then echo 'Deleting old files...' && ls -1t *.pcap | tail -n +5 | xargs rm -f && echo \"Deleted $((TOTAL - %KEEP_COUNT%)) old files\"; else echo 'No cleanup needed'; fi && echo '' && echo 'Remaining files:' && ls -lh *.pcap 2>/dev/null"
 
 echo.
-echo Done!
+echo ========================================
+echo Cleanup Complete!
+echo ========================================
 pause

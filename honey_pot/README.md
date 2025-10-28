@@ -1,684 +1,1344 @@
-# 🍯 Beelzebub Honeypot - AI-Powered Network Security Trap# 🍯 Beelzebub AI Honeypot
+# Beelzebub Honeypot - AI-Powered Network Security System# Beelzebub Honeypot - AI-Powered Network Security System
 
 
 
-A sophisticated honeypot system powered by GLM-4.5 AI to detect, analyze, and log attacker activities in your network.> **AI-Powered Deception System for Network Security Research**
+> AI-Powered Deception System for Network Security Research> AI-Powered Deception System for Network Security Research
 
 
 
-## 📋 Table of ContentsAn intelligent honeypot that simulates vulnerable production servers to attract, trap, and study attackers. Built on the official [Beelzebub framework](https://github.com/mariocandela/beelzebub) with full dashboard integration.
-
-- [Overview](#overview)
-
-- [Architecture](#architecture)---
-
-- [How It Works](#how-it-works)
-
-- [Quick Start](#quick-start)## 📋 Table of Contents
-
-- [Configuration](#configuration)
-
-- [Testing](#testing)- [What Is This?](#-what-is-this)
-
-- [Log Analysis](#log-analysis)- [How It Works](#-how-it-works)
-
-- [Troubleshooting](#troubleshooting)- [Quick Start](#-quick-start)
-
-- [Features](#-features)
-
----- [Testing & Monitoring](#-testing--monitoring)
-
-- [IP Rerouting](#-ip-rerouting)
-
-## 🎯 Overview- [Logs & Analytics](#-logs--analytics)
-
-- [Configuration](#-configuration)
-
-**Beelzebub** is an advanced honeypot framework that simulates vulnerable services to attract and study attacker behavior. This deployment uses:- [Troubleshooting](#-troubleshooting)
+An intelligent honeypot that simulates vulnerable production servers to attract, trap, and study attackers. Built on the official [Beelzebub framework](https://github.com/mariocandela/beelzebub) with full dashboard integration.An intelligent honeypot that simulates vulnerable production servers to attract, trap, and study attackers. Built on the official [Beelzebub framework](https://github.com/mariocandela/beelzebub) with full dashboard integration.
 
 
 
-- **AI Model**: GLM-4.5 via Anthropic API for realistic shell interactions---
+------
+
+
+
+## Table of Contents## Table of Contents
+
+
+
+- [Overview](#overview)- [Overview](#overview)
+
+- [System Architecture](#system-architecture)- [System Architecture](#system-architecture)
+
+- [How It Works](#how-it-works)- [How It Works](#how-it-works)
+
+- [Quick Start](#quick-start)- [Quick Start](#quick-start)
+
+- [Features](#features)- [Features](#features)
+
+- [Testing & Monitoring](#testing--monitoring)- [Testing & Monitoring](#testing--monitoring)
+
+- [IP Rerouting](#ip-rerouting)- [IP Rerouting](#ip-rerouting)
+
+- [Logs & Analytics](#logs--analytics)- [Logs & Analytics](#logs--analytics)
+
+- [Configuration](#configuration)- [Configuration](#configuration)
+
+- [Troubleshooting](#troubleshooting)- [Troubleshooting](#troubleshooting)
+
+
+
+------
+
+
+
+## Overview## Overview
+
+
+
+**Beelzebub** is an advanced honeypot framework that simulates vulnerable services to attract and study attacker behavior. This deployment includes:**Beelzebub** is an advanced honeypot framework that simulates vulnerable services to attract and study attacker behavior. This deployment uses:
+
+
+
+- **AI Model**: GLM-4.5 via Anthropic API for realistic shell interactions
 
 - **Protocols**: SSH, HTTP, MySQL, PostgreSQL, FTP, Telnet
 
-- **Logging**: Comprehensive attack logging with JSONL format## 🎯 What Is This?
+- **Logging**: Comprehensive attack logging with JSONL format- **AI Model**: GLM-4.5 via Anthropic API for realistic shell interactions---
 
 - **Deployment**: Docker-based for easy setup and isolation
 
-Beelzebub is a **deception honeypot** that pretends to be a vulnerable server to:
+- **Protocols**: SSH, HTTP, MySQL, PostgreSQL, FTP, Telnet
 
 ### Key Features
 
-✅ AI-powered realistic responses to attacker commands  - ✅ **Attract attackers** - Looks like an easy target with open services
+- **Logging**: Comprehensive attack logging with JSONL format## 🎯 What Is This?
 
-✅ Multiple protocol support (SSH, HTTP, Database, FTP, Telnet)  - ✅ **Trap & isolate** - Contains malicious activity in a safe environment
+- AI-powered realistic responses to attacker commands
 
-✅ Automatic credential capture and logging  - ✅ **Log everything** - Records all attacker actions and commands
+- Multiple protocol support (SSH, HTTP, Database, FTP, Telnet)- **Deployment**: Docker-based for easy setup and isolation
 
-✅ Web-based log viewer  - ✅ **Learn patterns** - Analyze attack methods, tools, and behavior
+- Automatic credential capture and logging
 
-✅ Isolated Docker network for security  - ✅ **Protect real systems** - Diverts attention from actual infrastructure
+- Web-based log viewer for real-time monitoringBeelzebub is a **deception honeypot** that pretends to be a vulnerable server to:
 
-✅ Integration with security dashboard  
+- Isolated Docker network for security
 
-### Current Status
+- Integration with security dashboard### Key Features
 
----
 
-- ✅ **Fully Operational** - Integrated with dashboard control panel
 
-## 🏗️ Architecture- ✅ **AI-Powered** - Intelligent responses (GPT-4 optional, fallback included)
+### Deployment Status✅ AI-powered realistic responses to attacker commands  - ✅ **Attract attackers** - Looks like an easy target with open services
 
-- ✅ **Multi-Protocol** - SSH, HTTP, MySQL, PostgreSQL support
 
-### System Architecture Flowchart- ✅ **Production-Ready** - Professional logging and monitoring
+
+- **Status**: Fully Operational✅ Multiple protocol support (SSH, HTTP, Database, FTP, Telnet)  - ✅ **Trap & isolate** - Contains malicious activity in a safe environment
+
+- **Integration**: Dashboard control panel enabled
+
+- **AI Engine**: GPT-4 optional with fallback system✅ Automatic credential capture and logging  - ✅ **Log everything** - Records all attacker actions and commands
+
+- **Protocols**: SSH, HTTP, MySQL, PostgreSQL
+
+- **Monitoring**: Professional logging and analytics✅ Web-based log viewer  - ✅ **Learn patterns** - Analyze attack methods, tools, and behavior
+
+
+
+---✅ Isolated Docker network for security  - ✅ **Protect real systems** - Diverts attention from actual infrastructure
+
+
+
+## System Architecture✅ Integration with security dashboard  
+
+
+
+### Network Flow### Current Status
 
 
 
 ```---
 
-┌─────────────────────────────────────────────────────────────────┐
+INTERNET / ATTACKERS
 
-│                        INTERNET / ATTACKERS                      │## 🧠 How It Works
+         |- ✅ **Fully Operational** - Integrated with dashboard control panel
 
-└────────────────────────────┬────────────────────────────────────┘
+         v
 
-                             │### Passive Monitoring (Automatic)
+EXPOSED HONEYPOT PORTS## 🏗️ Architecture- ✅ **AI-Powered** - Intelligent responses (GPT-4 optional, fallback included)
 
-                             ▼
+SSH:2222 | HTTP:8080 | MySQL:3306 | PostgreSQL:5432
 
-┌─────────────────────────────────────────────────────────────────┐The honeypot **does NOT scan your network**. Instead, it:
+         |- ✅ **Multi-Protocol** - SSH, HTTP, MySQL, PostgreSQL support
 
-│                    EXPOSED HONEYPOT PORTS                        │
+         v
 
-│  SSH:2222 │ HTTP:8080 │ MySQL:3306 │ PostgreSQL:5432 │ FTP:2121 │1. **Sits on network** with visible IP `192.168.6.200`
+BEELZEBUB HONEYPOT CONTAINER### System Architecture Flowchart- ✅ **Production-Ready** - Professional logging and monitoring
 
-└────────────────────────────┬────────────────────────────────────┘2. **Opens fake services** (SSH, HTTP, databases)
+  - Protocol Handlers
 
-                             │3. **Waits for attackers** to discover and connect
+  - AI Response Engine (GLM-4.5)
 
-                             ▼4. **Logs automatically** when someone attacks
+  - Logger
 
-┌─────────────────────────────────────────────────────────────────┐5. **You review logs** in Analytics dashboard
+         |```---
 
-│                  BEELZEBUB HONEYPOT CONTAINER                    │
+         v
 
-│  ┌──────────────────────────────────────────────────────────┐   │```
+PERSISTENT STORAGE┌─────────────────────────────────────────────────────────────────┐
 
-│  │  Protocol Handlers                                       │   │┌─────────────────────────────┐
+  - logs/beelzebub.log (JSONL)
 
-│  │  ├─ SSH Service (AI-Powered with GLM-4.5)               │   ││     Beelzebub Honeypot      │
+  - logs/attacks.jsonl│                        INTERNET / ATTACKERS                      │## 🧠 How It Works
 
-│  │  ├─ HTTP Service (Fake phpMyAdmin)                      │   ││   IP: 192.168.6.200         │
+         |
 
-│  │  ├─ MySQL Service (Banner: 8.0.29)                      │   ││                              │
+         v└────────────────────────────┬────────────────────────────────────┘
 
-│  │  ├─ PostgreSQL Service (Banner: 9.6.0)                  │   ││   Services:                  │
+ANALYTICS & MONITORING
 
-│  │  ├─ FTP Service                                          │   ││   • SSH (Port 2222)          │
+  - Log Viewer (Port 8888)                             │### Passive Monitoring (Automatic)
 
-│  │  └─ Telnet Service                                       │   ││   • HTTP (Port 8080)         │
+  - Security Dashboard (Port 5000)
 
-│  └──────────────────────────────────────────────────────────┘   ││   • MySQL (Port 3306)        │
+```                             ▼
 
-│                             │                                    ││   • PostgreSQL (Port 5432)   │
 
-│                             ▼                                    ││                              │
+
+### Component Architecture┌─────────────────────────────────────────────────────────────────┐The honeypot **does NOT scan your network**. Instead, it:
+
+
+
+- **Protocol Handlers**: SSH, HTTP, MySQL, PostgreSQL, FTP, Telnet│                    EXPOSED HONEYPOT PORTS                        │
+
+- **AI Response Engine**: GLM-4.5 for intelligent attacker interaction
+
+- **Logger**: Captures all interactions to JSONL format│  SSH:2222 │ HTTP:8080 │ MySQL:3306 │ PostgreSQL:5432 │ FTP:2121 │1. **Sits on network** with visible IP `192.168.6.200`
+
+- **Storage**: Persistent logs for analysis
+
+- **Monitoring**: Web-based log viewer and dashboard integration└────────────────────────────┬────────────────────────────────────┘2. **Opens fake services** (SSH, HTTP, databases)
+
+
+
+---                             │3. **Waits for attackers** to discover and connect
+
+
+
+## How It Works                             ▼4. **Logs automatically** when someone attacks
+
+
+
+### Passive Monitoring (Automatic)┌─────────────────────────────────────────────────────────────────┐5. **You review logs** in Analytics dashboard
+
+
+
+The honeypot operates in passive mode by default:│                  BEELZEBUB HONEYPOT CONTAINER                    │
+
+
+
+1. **Network Presence**: Honeypot sits on network at IP `192.168.6.200`│  ┌──────────────────────────────────────────────────────────┐   │```
+
+2. **Service Exposure**: Opens fake services (SSH, HTTP, databases)
+
+3. **Attacker Discovery**: Waits for attackers to discover and connect│  │  Protocol Handlers                                       │   │┌─────────────────────────────┐
+
+4. **Automatic Logging**: Records all interactions automatically
+
+5. **Analytics Review**: Review captured data in Analytics dashboard│  │  ├─ SSH Service (AI-Powered with GLM-4.5)               │   ││     Beelzebub Honeypot      │
+
+
+
+**Important**: The honeypot does NOT actively scan your network. It only logs connections made to it.│  │  ├─ HTTP Service (Fake phpMyAdmin)                      │   ││   IP: 192.168.6.200         │
+
+
+
+### Active Rerouting (Manual Control)│  │  ├─ MySQL Service (Banner: 8.0.29)                      │   ││                              │
+
+
+
+For targeted monitoring, you can manually reroute suspicious devices:│  │  ├─ PostgreSQL Service (Banner: 9.6.0)                  │   ││   Services:                  │
+
+
+
+1. **Identify Threat**: Detect suspicious IP (e.g., `192.168.6.132`)│  │  ├─ FTP Service                                          │   ││   • SSH (Port 2222)          │
+
+2. **Initiate Reroute**: Dashboard → Honeypot page → Enter IP → Click "Reroute"
+
+3. **Network Isolation**: Container moved to `honeypot_net` (192.168.7.0/24)│  │  └─ Telnet Service                                       │   ││   • HTTP (Port 8080)         │
+
+4. **Traffic Capture**: All device traffic logged and analyzed
+
+5. **Behavior Analysis**: Review attacker methods and tools used│  └──────────────────────────────────────────────────────────┘   ││   • MySQL (Port 3306)        │
+
+
+
+**Network Transition**:│                             │                                    ││   • PostgreSQL (Port 5432)   │
+
+```
+
+Before Reroute:│                             ▼                                    ││                              │
+
+Device (192.168.6.132) → Access to all network resources
 
 │  ┌──────────────────────────────────────────────────────────┐   ││   Status: WAITING...         │
 
-│  │  AI Response Engine (GLM-4.5)                           │   │└──────────▲──────────────────┘
+After Reroute:
 
-│  │  • Analyzes attacker commands                           │   │           │
+Device (192.168.7.2) → Isolated in honeypot network│  │  AI Response Engine (GLM-4.5)                           │   │└──────────▲──────────────────┘
 
-│  │  • Generates realistic shell responses                  │   │           │ Attacker finds it
+                    → Can only communicate with honeypot
 
-│  │  • Simulates compromised server behavior                │   │           │ and tries to hack
+                    → Cannot reach production systems│  │  • Analyzes attacker commands                           │   │           │
 
-│  └──────────────────────────────────────────────────────────┘   │           │
+                    → All actions logged
 
-│                             │                                    │      👤 Attacker
+```│  │  • Generates realistic shell responses                  │   │           │ Attacker finds it
 
-│                             ▼                                    │```
 
-│  ┌──────────────────────────────────────────────────────────┐   │
 
-│  │  Logger                                                  │   │**Key Point**: Attackers must **come to the honeypot**. It doesn't search for them.
+---│  │  • Simulates compromised server behavior                │   │           │ and tries to hack
 
-│  │  • Captures all interactions                            │   │
 
-│  │  • Records credentials, commands, payloads              │   │### Active Rerouting (Manual Control)
 
-│  │  • Outputs to /logs/beelzebub.log                       │   │
+## Quick Start│  └──────────────────────────────────────────────────────────┘   │           │
 
-│  └──────────────────────────────────────────────────────────┘   │You can **force suspicious devices** into the honeypot:
+
+
+### Prerequisites│                             │                                    │      👤 Attacker
+
+
+
+- Windows 10/11 with WSL2│                             ▼                                    │```
+
+- Docker Desktop installed and running
+
+- API Keys (optional): GLM-4.5 via Anthropic for AI responses│  ┌──────────────────────────────────────────────────────────┐   │
+
+
+
+### Installation│  │  Logger                                                  │   │**Key Point**: Attackers must **come to the honeypot**. It doesn't search for them.
+
+
+
+#### Method 1: Dashboard Control (Recommended)│  │  • Captures all interactions                            │   │
+
+
+
+**Starting the honeypot:**│  │  • Records credentials, commands, payloads              │   │### Active Rerouting (Manual Control)
+
+
+
+1. Open Dashboard: `http://localhost:5000`│  │  • Outputs to /logs/beelzebub.log                       │   │
+
+2. Navigate: Click "Honeypot" in sidebar
+
+3. Start: Click "Start Honeypot" button│  └──────────────────────────────────────────────────────────┘   │You can **force suspicious devices** into the honeypot:
+
+4. Monitor: View stats, logs, and interactions in real-time
 
 └────────────────────────────┬────────────────────────────────────┘
 
+**Stopping the honeypot:**
+
                              │1. **Identify suspicious IP** (e.g., `192.168.6.132`)
 
-                             ▼2. **Reroute via dashboard**: Honeypot page → Enter IP → Click "🎯 Reroute"
+1. Go to Honeypot page
 
-┌─────────────────────────────────────────────────────────────────┐3. **Device gets isolated** - Moved to `honeypot_net` (192.168.7.0/24)
+2. Click "Stop Honeypot" button                             ▼2. **Reroute via dashboard**: Honeypot page → Enter IP → Click "🎯 Reroute"
 
-│                      PERSISTENT STORAGE                          │4. **All traffic logged** - Everything the device does is recorded
 
-│  ┌──────────────────────────────────────────────────────────┐   │5. **Analyze behavior** - Review what it tried to do
+
+#### Method 2: Batch Scripts┌─────────────────────────────────────────────────────────────────┐3. **Device gets isolated** - Moved to `honeypot_net` (192.168.7.0/24)
+
+
+
+```batch│                      PERSISTENT STORAGE                          │4. **All traffic logged** - Everything the device does is recorded
+
+# Start
+
+cd e:\nos\Network_Security_poc\honey_pot│  ┌──────────────────────────────────────────────────────────┐   │5. **Analyze behavior** - Review what it tried to do
+
+start_beelzebub.bat
 
 │  │  ./logs/beelzebub.log (JSONL format)                    │   │
 
-│  │  ./logs/attacks.jsonl (parsed attacks)                  │   │```
+# Stop
+
+stop_beelzebub.bat│  │  ./logs/attacks.jsonl (parsed attacks)                  │   │```
+
+```
 
 │  └──────────────────────────────────────────────────────────┘   │Before Reroute:
 
+#### Method 3: Docker Compose
+
 └────────────────────────────┬────────────────────────────────────┘Device (192.168.6.132) → Can access everything
 
-                             │
+```batch
 
-                   ┌─────────┴─────────┐After Reroute:
+cd e:\nos\Network_Security_poc\honey_pot                             │
+
+
+
+# Start                   ┌─────────┴─────────┐After Reroute:
+
+wsl docker compose -f docker-compose-beelzebub.yml up -d
 
                    │                   │Device (192.168.7.2) → TRAPPED in honeypot network
 
-                   ▼                   ▼                     → Can ONLY talk to honeypot
+# Stop
+
+wsl docker compose -f docker-compose-beelzebub.yml down                   ▼                   ▼                     → Can ONLY talk to honeypot
+
+```
 
 ┌──────────────────────────┐ ┌────────────────────────┐                     → Cannot reach real systems
 
+---
+
 │   LOG VIEWER (Web UI)    │ │  SECURITY DASHBOARD    │                     → All actions logged
+
+## Features
 
 │   http://localhost:8888  │ │  http://localhost:5000 │```
 
+### Simulated Services
+
 │   • Browse attack logs   │ │  • Analytics           │
 
-│   • Real-time viewing    │ │  • Attack visualization│**Key Point**: You must **manually reroute** suspicious IPs. Honeypot won't do it automatically.
+| Service | Port | Simulation Details |
 
-└──────────────────────────┘ └────────────────────────┘
+|---------|------|-------------------|│   • Real-time viewing    │ │  • Attack visualization│**Key Point**: You must **manually reroute** suspicious IPs. Honeypot won't do it automatically.
 
-```---
+| **SSH** | 2222 | Fake Linux shell with root access |
+
+| **HTTP Admin** | 8080 | Fake phpMyAdmin database panel |└──────────────────────────┘ └────────────────────────┘
+
+| **HTTP Alt** | 8081 | Fake web server |
+
+| **MySQL** | 3306 | Database server (Banner: 8.0.29) |```---
+
+| **PostgreSQL** | 5432 | Database server (Banner: 9.6.0) |
+
+| **Log Viewer** | 8888 | Real-time log web interface |
 
 
 
----## 🚀 Quick Start
+### Data Capture---## 🚀 Quick Start
 
 
 
-## 🔄 How It Works### Method 1: Dashboard Control (Recommended)
+**Logged Information**:
 
+- All SSH commands entered by attackers
 
+- HTTP requests (URLs, methods, headers, body)## 🔄 How It Works### Method 1: Dashboard Control (Recommended)
+
+- Login attempts (usernames and passwords)
+
+- Connection metadata (IP addresses, timestamps, protocols)
+
+- Attack patterns and tool signatures
 
 ### Attack Flow Diagram**Start the honeypot:**
 
+**Intelligence Features**:
 
+- AI-powered responses (optional GPT-4 integration)
 
-```1. **Open Dashboard**: `http://localhost:5000`
+- Automatic pattern analysis
 
-┌─────────────┐2. **Navigate**: Click "🍯 Honeypot" in sidebar
+- Threat scoring (High/Medium/Low)```1. **Open Dashboard**: `http://localhost:5000`
+
+- Attack rate statistics
+
+- Protocol distribution analysis┌─────────────┐2. **Navigate**: Click "🍯 Honeypot" in sidebar
+
+- Export capabilities (JSON format)
 
 │  Attacker   │3. **Start**: Click "▶️ Start Honeypot" button
 
+---
+
 │  Scanning   │4. **Monitor**: View stats, logs, and interactions in real-time
+
+## Testing & Monitoring
 
 │  Network    │
 
+### Test SSH Honeypot
+
 └──────┬──────┘**Stop the honeypot:**
-
-       │
-
-       │ 1. Port Scan discovers open ports1. Go to Honeypot page
-
-       │    (SSH:2222, HTTP:8080, etc.)2. Click "⏹️ Stop Honeypot" button
-
-       │
-
-       ▼### Method 2: Batch Scripts
-
-┌─────────────────────────────┐
-
-│  Attacker Connects to Port  │```batch
-
-│  (e.g., SSH on port 2222)   │# Start
-
-└──────────┬──────────────────┘cd e:\nos\Network_Security_poc\honey_pot
-
-           │start_beelzebub.bat
-
-           │ 2. Honeypot accepts connection
-
-           │    and presents fake service# Stop
-
-           │stop_beelzebub.bat
-
-           ▼```
-
-┌─────────────────────────────────┐
-
-│  Service Handler Activated      │### Method 3: Docker Compose
-
-│  • SSH: Shows OpenSSH banner    │
-
-│  • HTTP: Shows phpMyAdmin login │```batch
-
-│  • MySQL/PostgreSQL: Shows DB   │cd e:\nos\Network_Security_poc\honey_pot
-
-└──────────┬──────────────────────┘
-
-           │# Start
-
-           │ 3. Attacker attempts authenticationwsl docker compose -f docker-compose-beelzebub.yml up -d
-
-           │    (username/password, exploits)
-
-           │# Stop
-
-           ▼wsl docker compose -f docker-compose-beelzebub.yml down
-
-┌─────────────────────────────────┐```
-
-│  Credentials Captured & Logged  │
-
-│  • Username: admin              │---
-
-│  • Password: password123        │
-
-│  • IP: 192.168.1.50             │## ✨ Features
-
-│  • Timestamp: 2025-10-27T05:30  │
-
-└──────────┬──────────────────────┘### Fake Services (What Attackers See)
-
-           │
-
-           │ 4. Attacker granted fake access| Service | Port | Simulation |
-
-           │|---------|------|------------|
-
-           ▼| **SSH** | 2222 | Fake Linux shell with root access |
-
-┌─────────────────────────────────┐| **HTTP Admin** | 8080 | Fake phpMyAdmin database panel |
-
-│  AI-Powered Interaction Begins  │| **HTTP Alt** | 8081 | Fake web server |
-
-│  Attacker: ls -la               │| **MySQL** | 3306 | Fake database server |
-
-│  GLM-4.5: Generates response    │| **PostgreSQL** | 5432 | Fake database server |
-
-│  showing fake files/directories │| **Log Viewer** | 8888 | Real-time log web interface |
-
-└──────────┬──────────────────────┘
-
-           │### What Gets Logged
-
-           │ 5. Every command logged
-
-           │✅ **All SSH commands** - Every command attackers type  
-
-           ▼✅ **HTTP requests** - URLs, methods, headers, body  
-
-┌─────────────────────────────────┐✅ **Login attempts** - Usernames and passwords tried  
-
-│  Attacker Tries Commands        │✅ **Connection data** - IP addresses, timestamps, protocols  
-
-│  • cat .env (shows fake creds)  │✅ **Attack patterns** - Tools used, attack sequences  
-
-│  • docker ps (shows containers) │
-
-│  • cat id_rsa (shows fake key)  │### Intelligence Features
-
-└──────────┬──────────────────────┘
-
-           │- **🤖 AI Responses** (Optional): GPT-4 powered realistic interactions
-
-           │ 6. All data captured- **📊 Pattern Analysis**: Automatic detection of attack methods
-
-           │- **🎯 Threat Scoring**: High/Medium/Low threat classification
-
-           ▼- **📈 Statistics**: Attack rates, top attackers, protocol distribution
-
-┌─────────────────────────────────┐- **💾 Export**: Download analytics reports as JSON
-
-│  Log Entry Created (JSONL)      │
-
-│  {                              │---
-
-│    "timestamp": "...",          │
-
-│    "source_ip": "192.168.1.50", │## 🧪 Testing & Monitoring
-
-│    "protocol": "ssh",           │
-
-│    "command": "cat .env",       │### Test SSH Honeypot
-
-│    "response": "DB_PASS=..."    │
-
-│  }                              │```bash
-
-└──────────┬──────────────────────┘# Connect
-
-           │ssh root@localhost -p 2222
-
-           │ 7. Security team analyzes
-
-           │# Try weak passwords (all work!):
-
-           ▼# - root
-
-┌─────────────────────────────────┐# - admin
-
-│  Dashboard Shows Analytics      │# - password
-
-│  • Attack patterns              │# - 123456
-
-│  • Common credentials tried     │
-
-│  • Attacker IPs/geolocations    │# Once "logged in", try commands:
-
-│  • Exploit attempts             │ls
-
-└─────────────────────────────────┘pwd
-
-```whoami
-
-cat .env          # Shows fake database credentials
-
-### Service Interaction Detailsdocker ps         # Shows fake containers
-
-netstat -tuln     # Shows fake network connections
-
-#### SSH Honeypot Flow```
-
-```
-
-Attacker → ssh root@honeypot -p 2222**What attackers see:**
-
-          ↓```bash
-
-Honeypot → Password prompt appearsroot@prod-db-server-03:~$ ls
-
-          ↓Documents  Images  .ssh  .docker  mysql_backups
-
-Attacker → Enters password (root, admin, 123456)
-
-          ↓root@prod-db-server-03:~$ cat .env
-
-Honeypot → ✅ LOGGED + Grants access to fake shellDB_HOST=localhost
-
-          ↓DB_USER=admin
-
-Attacker → whoamiDB_PASS=P@ssw0rd123!     # FAKE! But looks real
-
-          ↓API_KEY=sk-proj-fake12345
-
-GLM-4.5  → Analyzes command context```
-
-          → Generates: "root"
-
-          ↓### Test HTTP Honeypot
-
-Honeypot → Returns realistic output
-
-          → ✅ LOGGED command & response**Browser**: Open `http://localhost:8080`
-
-          ↓
-
-Attacker → cat /etc/passwdYou'll see:
-
-          ↓- Fake phpMyAdmin login page
-
-GLM-4.5  → Generates fake passwd file- Fake database management interface
-
-          → Shows realistic user accounts- Fake tables with "customer_data", "payment_info"
-
-          ↓- Everything looks real but logs all interactions
-
-Honeypot → ✅ LOGGED entire interaction
-
-```**Command line**:
 
 ```bash
 
-#### HTTP Honeypot Flowcurl http://localhost:8080
+# Connect       │
 
-```curl http://localhost:8080/admin
+ssh root@localhost -p 2222
 
-Attacker → Opens http://honeypot:8080curl -X POST http://localhost:8080/login -d "user=admin&pass=test"
+       │ 1. Port Scan discovers open ports1. Go to Honeypot page
 
-          ↓```
+# Weak passwords that will work:
 
-Honeypot → Displays fake phpMyAdmin login page
+# - root       │    (SSH:2222, HTTP:8080, etc.)2. Click "⏹️ Stop Honeypot" button
 
-          ↓### Test Database Honeypots
+# - admin
 
-Attacker → Enters credentials (admin/password)
+# - password       │
 
-          ↓```bash
+# - 123456
 
-Honeypot → ✅ LOGGED credentials# MySQL
+       ▼### Method 2: Batch Scripts
 
-          → Redirects to fake dashboardmysql -h localhost -P 3306 -u root -p
+# Once connected, try commands:
 
-          ↓
+ls┌─────────────────────────────┐
 
-Honeypot → Shows fake databases:# PostgreSQL
+pwd
 
-          • production_dbpsql -h localhost -p 5432 -U postgres
+whoami│  Attacker Connects to Port  │```batch
 
-          • customer_data```
+cat .env          # Shows fake database credentials
 
-          • payment_info
+docker ps         # Shows fake containers│  (e.g., SSH on port 2222)   │# Start
 
-          ↓### View Logs
+netstat -tuln     # Shows fake network connections
 
-Attacker → Clicks on databases (captured)
+```└──────────┬──────────────────┘cd e:\nos\Network_Security_poc\honey_pot
 
-          ↓**Dashboard** (Easiest):
 
-Honeypot → ✅ LOGGED all interactions1. Go to "🍯 Honeypot" page
 
-```2. Click service buttons (SSH, HTTP, etc.)
+**Attacker View**:           │start_beelzebub.bat
 
-3. See formatted logs
+```bash
 
----
+root@prod-db-server-03:~$ ls           │ 2. Honeypot accepts connection
+
+Documents  Images  .ssh  .docker  mysql_backups
+
+           │    and presents fake service# Stop
+
+root@prod-db-server-03:~$ cat .env
+
+DB_HOST=localhost           │stop_beelzebub.bat
+
+DB_USER=admin
+
+DB_PASS=P@ssw0rd123!     # FAKE credentials           ▼```
+
+API_KEY=sk-proj-fake12345
+
+```┌─────────────────────────────────┐
+
+
+
+### Test HTTP Honeypot│  Service Handler Activated      │### Method 3: Docker Compose
+
+
+
+**Browser Access**:│  • SSH: Shows OpenSSH banner    │
+
+- URL: `http://localhost:8080`
+
+- Displays: Fake phpMyAdmin login page│  • HTTP: Shows phpMyAdmin login │```batch
+
+- Features: Fake database management interface
+
+- Content: Fake tables with "customer_data", "payment_info"│  • MySQL/PostgreSQL: Shows DB   │cd e:\nos\Network_Security_poc\honey_pot
+
+- Logging: All interactions recorded
+
+└──────────┬──────────────────────┘
+
+**Command Line**:
+
+```bash           │# Start
+
+curl http://localhost:8080
+
+curl http://localhost:8080/admin           │ 3. Attacker attempts authenticationwsl docker compose -f docker-compose-beelzebub.yml up -d
+
+curl -X POST http://localhost:8080/login -d "user=admin&pass=test"
+
+```           │    (username/password, exploits)
+
+
+
+### Test Database Honeypots           │# Stop
+
+
+
+```bash           ▼wsl docker compose -f docker-compose-beelzebub.yml down
+
+# MySQL
+
+mysql -h localhost -P 3306 -u root -p┌─────────────────────────────────┐```
+
+
+
+# PostgreSQL│  Credentials Captured & Logged  │
+
+psql -h localhost -p 5432 -U postgres
+
+```│  • Username: admin              │---
+
+
+
+### View Logs│  • Password: password123        │
+
+
+
+**Dashboard (Recommended)**:│  • IP: 192.168.1.50             │## ✨ Features
+
+1. Navigate to "Honeypot" page
+
+2. Click service buttons (SSH, HTTP, etc.)│  • Timestamp: 2025-10-27T05:30  │
+
+3. View formatted, searchable logs
+
+└──────────┬──────────────────────┘### Fake Services (What Attackers See)
 
 **Web Interface**:
 
-## 🚀 Quick Start- URL: `http://localhost:8888/logs`
+- URL: `http://localhost:8888/logs`           │
 
-- Real-time updates
+- Features: Real-time updates, all services visible
 
-### Prerequisites- All services visible
+           │ 4. Attacker granted fake access| Service | Port | Simulation |
 
-- **Windows 10/11** with WSL2
+**Raw Files**:
 
-- **Docker Desktop** installed and running**Raw Files**:
-
-- **API Keys**: GLM-4.5 via Anthropic (optional, falls back to regex)- Location: `honey_pot/logs/`
+- Location: `honey_pot/logs/`           │|---------|------|------------|
 
 - Files: `ssh-22.log`, `http-8080.log`, `attacks.jsonl`
 
-### Installation Steps
+           ▼| **SSH** | 2222 | Fake Linux shell with root access |
 
 ---
 
-1. **Navigate to honeypot directory**
+┌─────────────────────────────────┐| **HTTP Admin** | 8080 | Fake phpMyAdmin database panel |
 
-   ```bash## 🎯 IP Rerouting
+## IP Rerouting
 
-   cd e:\nos\Network_Security_poc\honey_pot
+│  AI-Powered Interaction Begins  │| **HTTP Alt** | 8081 | Fake web server |
 
-   ```### When to Use
+### When to Use Rerouting
 
+│  Attacker: ls -la               │| **MySQL** | 3306 | Fake database server |
 
+Reroute suspicious IPs when you need to:
 
-2. **Configure API keys** (Optional - for AI responses)Reroute suspicious IPs when you want to:
+- Monitor specific device behavior in detail│  GLM-4.5: Generates response    │| **PostgreSQL** | 5432 | Fake database server |
 
-   - 🔍 **Monitor specific device** behavior
+- Contain potential threats in isolated environment
 
-   Edit `.env` file:- 🚨 **Contain potential threat** in isolated environment
+- Gather detailed intelligence on specific attacker│  showing fake files/directories │| **Log Viewer** | 8888 | Real-time log web interface |
 
-   ```env- 📊 **Gather detailed intelligence** on specific attacker
+- Protect production systems from suspicious activity
 
-   GLM_KEY=your_glm_key_here- 🛡️ **Protect real systems** from suspicious activity
+└──────────┬──────────────────────┘
 
-   ANTHROPIC_API_KEY=your_anthropic_key_here
+### Rerouting Process
 
-   ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic### How to Reroute
-
-   ```
+           │### What Gets Logged
 
 **Via Dashboard**:
 
-   > **Note**: If you don't have API keys, the honeypot will use fallback regex-based responses (still functional!)
+           │ 5. Every command logged
 
 1. Open Dashboard: `http://localhost:5000`
 
-3. **Start the honeypot**2. Go to "🍯 Honeypot" page
+2. Navigate: Go to "Honeypot" page           │✅ **All SSH commands** - Every command attackers type  
 
-   3. Scroll to "🔄 Reroute Device/Attacker to Honeypot"
+3. Locate Section: "Reroute Device/Attacker to Honeypot"
 
-   **Option A: Using Quick Start Script (Recommended)**4. Enter IP address (e.g., `192.168.6.132`)
+4. Enter IP: Input address (e.g., `192.168.6.132`)           ▼✅ **HTTP requests** - URLs, methods, headers, body  
 
-   ```bash5. Click "🎯 Reroute to Honeypot"
+5. Execute: Click "Reroute to Honeypot"
 
-   start_beelzebub_simple.bat6. Container is moved to isolated network
+6. Verify: Container moved to isolated network┌─────────────────────────────────┐✅ **Login attempts** - Usernames and passwords tried  
 
-   ```7. View rerouted IPs in "Currently Rerouted IPs" section
+7. Monitor: View rerouted IPs in "Currently Rerouted IPs" section
 
+│  Attacker Tries Commands        │✅ **Connection data** - IP addresses, timestamps, protocols  
 
+**Rerouting Steps**:
 
-   **Option B: Manual Docker Compose****What Happens**:
-
-   ```bash
-
-   wsl bash -c "docker compose -f docker-compose-simple.yml up -d"```
-
-   ```Step 1: Container is on custom_net (192.168.6.0/24)
-
-        Can access: dashboard, monitor, other devices
-
-4. **Verify services are running**
-
-   ```bashStep 2: You reroute the IP
-
-   wsl bash -c "docker ps | grep beelzebub"        Dashboard executes:
-
-   ```        - docker network disconnect custom_net container_name
-
-        - docker network connect honeypot_net container_name
-
-   Expected output:
-
-   ```Step 3: Container now on honeypot_net (192.168.7.0/24)
-
-   beelzebub-honeypot    Up    0.0.0.0:2222->22/tcp, 0.0.0.0:8080->80/tcp, ...        Can ONLY access: honeypot (192.168.7.100)
-
-   beelzebub-log-viewer  Up    0.0.0.0:8888->80/tcp        Isolated from: everything else
-
-   ```        All actions: logged in honeypot
-
-
-
----Step 4: Review Analytics page
-
-        See: what commands they tried
-
-## ⚙️ Configuration             what services they accessed
-
-             what data they attempted to steal
-
-### File Structure```
+│  • cat .env (shows fake creds)  │✅ **Attack patterns** - Tools used, attack sequences  
 
 ```
 
-honey_pot/### Remove Reroute
+Step 1: Container on custom_net (192.168.6.0/24)│  • docker ps (shows containers) │
 
-├── docker-compose-simple.yml    # Main deployment configuration
+        Access: Dashboard, monitor, other devices
 
-├── .env                         # API keys and environment variables1. Go to "Currently Rerouted IPs" section
+│  • cat id_rsa (shows fake key)  │### Intelligence Features
 
-├── .env.example                 # Template for environment setup2. Click "❌ Remove" next to the IP
+Step 2: Reroute executed
 
-├── start_beelzebub_simple.bat  # Quick start script3. Container returns to main network
+        Commands:└──────────┬──────────────────────┘
 
-├── stop_beelzebub_simple.bat   # Quick stop script
+        - docker network disconnect custom_net container_name
 
-├── beelzebub-example/---
+        - docker network connect honeypot_net container_name           │- **🤖 AI Responses** (Optional): GPT-4 powered realistic interactions
 
-│   └── configurations/
 
-│       ├── beelzebub.yaml      # Core honeypot config## 📊 Logs & Analytics
+
+Step 3: Container on honeypot_net (192.168.7.0/24)           │ 6. All data captured- **📊 Pattern Analysis**: Automatic detection of attack methods
+
+        Access: Only honeypot (192.168.7.100)
+
+        Isolated from: All other resources           │- **🎯 Threat Scoring**: High/Medium/Low threat classification
+
+        Logging: All actions recorded
+
+           ▼- **📈 Statistics**: Attack rates, top attackers, protocol distribution
+
+Step 4: Analytics review
+
+        Data: Commands tried, services accessed, data theft attempts┌─────────────────────────────────┐- **💾 Export**: Download analytics reports as JSON
+
+```
+
+│  Log Entry Created (JSONL)      │
+
+### Remove Reroute
+
+│  {                              │---
+
+1. Go to "Currently Rerouted IPs" section
+
+2. Click "Remove" next to the IP address│    "timestamp": "...",          │
+
+3. Container returns to main network
+
+│    "source_ip": "192.168.1.50", │## 🧪 Testing & Monitoring
+
+---
+
+│    "protocol": "ssh",           │
+
+## Logs & Analytics
+
+│    "command": "cat .env",       │### Test SSH Honeypot
+
+### Analytics Dashboard
+
+│    "response": "DB_PASS=..."    │
+
+**Access**: Dashboard → "Analytics" page
+
+│  }                              │```bash
+
+**Available Metrics**:
+
+└──────────┬──────────────────────┘# Connect
+
+- **Summary Statistics**
+
+  - Total attacks recorded           │ssh root@localhost -p 2222
+
+  - Unique attacker count
+
+  - Attack rate (attacks/minute)           │ 7. Security team analyzes
+
+  - Most targeted service port
+
+           │# Try weak passwords (all work!):
+
+- **Top Attackers**
+
+  - Ranked list by IP address           ▼# - root
+
+  - Attack count and percentage
+
+  - Threat level classification (High/Medium/Low)┌─────────────────────────────────┐# - admin
+
+
+
+- **Protocol Distribution**│  Dashboard Shows Analytics      │# - password
+
+  - Visual representation of attack types
+
+  - HTTP, SSH, MySQL breakdown│  • Attack patterns              │# - 123456
+
+  - Percentage distribution
+
+│  • Common credentials tried     │
+
+- **Most Targeted URLs**
+
+  - Paths attackers attempted│  • Attacker IPs/geolocations    │# Once "logged in", try commands:
+
+  - Common targets: /admin, /login, /api
+
+│  • Exploit attempts             │ls
+
+- **User Agents**
+
+  - Tools used by attackers└─────────────────────────────────┘pwd
+
+  - curl, Python scripts, browsers
+
+```whoami
+
+- **Detailed Profiles**
+
+  - Per-attacker analysiscat .env          # Shows fake database credentials
+
+  - Command history
+
+  - Service targets### Service Interaction Detailsdocker ps         # Shows fake containers
+
+  - URL access patterns
+
+netstat -tuln     # Shows fake network connections
+
+- **Raw Logs**
+
+  - Recent attack records#### SSH Honeypot Flow```
+
+  - Full request/response data
+
+```
+
+### Example Analytics Output
+
+Attacker → ssh root@honeypot -p 2222**What attackers see:**
+
+```
+
+TOTAL ATTACKS: 31          ↓```bash
+
+UNIQUE ATTACKERS: 2
+
+ATTACK RATE: 40.10 attacks/minuteHoneypot → Password prompt appearsroot@prod-db-server-03:~$ ls
+
+
+
+TOP ATTACKERS:          ↓Documents  Images  .ssh  .docker  mysql_backups
+
+   #1 192.168.6.133: 20 attacks (64.5%) - High Threat
+
+   #2 192.168.6.1: 11 attacks (35.5%) - Medium ThreatAttacker → Enters password (root, admin, 123456)
+
+
+
+MOST TARGETED URLs:          ↓root@prod-db-server-03:~$ cat .env
+
+   /admin: 10 requests
+
+   /: 21 requestsHoneypot → ✅ LOGGED + Grants access to fake shellDB_HOST=localhost
+
+
+
+TIMELINE:          ↓DB_USER=admin
+
+   First Attack: 2025-10-23 11:37:22
+
+   Last Attack: 2025-10-23 11:38:08Attacker → whoamiDB_PASS=P@ssw0rd123!     # FAKE! But looks real
+
+   Duration: 46 seconds
+
+```          ↓API_KEY=sk-proj-fake12345
+
+
+
+### Log File FormatsGLM-4.5  → Analyzes command context```
+
+
+
+**attacks.jsonl** (Structured):          → Generates: "root"
+
+```json
+
+{          ↓### Test HTTP Honeypot
+
+  "timestamp": "2025-10-24T13:50:00.000Z",
+
+  "protocol": "SSH",Honeypot → Returns realistic output
+
+  "attacker_ip": "192.168.6.133",
+
+  "port": 2222,          → ✅ LOGGED command & response**Browser**: Open `http://localhost:8080`
+
+  "request": "cat /etc/passwd"
+
+}          ↓
+
+```
+
+Attacker → cat /etc/passwdYou'll see:
+
+**ssh-22.log** (Human-readable):
+
+```          ↓- Fake phpMyAdmin login page
+
+2025-10-24 13:50:00 - INFO - SSH connection from 192.168.6.133
+
+2025-10-24 13:50:05 - INFO - Login attempt: root / password123GLM-4.5  → Generates fake passwd file- Fake database management interface
+
+2025-10-24 13:50:06 - INFO - Command: ls -la
+
+2025-10-24 13:50:08 - INFO - Command: cat .env          → Shows realistic user accounts- Fake tables with "customer_data", "payment_info"
+
+```
+
+          ↓- Everything looks real but logs all interactions
+
+---
+
+Honeypot → ✅ LOGGED entire interaction
+
+## Configuration
+
+```**Command line**:
+
+### OpenAI Integration (Optional)
+
+```bash
+
+**Without OpenAI** (Default):
+
+- Uses regex-based response patterns#### HTTP Honeypot Flowcurl http://localhost:8080
+
+- Pre-configured realistic responses
+
+- No API costs```curl http://localhost:8080/admin
+
+- Functional and effective
+
+Attacker → Opens http://honeypot:8080curl -X POST http://localhost:8080/login -d "user=admin&pass=test"
+
+**With OpenAI** (Enhanced):
+
+- GPT-4 powered intelligent responses          ↓```
+
+- Contextual conversation capability
+
+- Extremely realistic interactionsHoneypot → Displays fake phpMyAdmin login page
+
+- Per-API-call costs apply
+
+          ↓### Test Database Honeypots
+
+**To Enable**:
+
+Attacker → Enters credentials (admin/password)
+
+1. Obtain API key: https://platform.openai.com/api-keys
+
+2. Set environment variable:          ↓```bash
+
+   ```batch
+
+   set OPENAI_API_KEY=sk-proj-your-key-hereHoneypot → ✅ LOGGED credentials# MySQL
+
+   ```
+
+3. Restart honeypot          → Redirects to fake dashboardmysql -h localhost -P 3306 -u root -p
+
+
+
+### Customize Services          ↓
+
+
+
+**Edit SSH Responses**:Honeypot → Shows fake databases:# PostgreSQL
+
+- File: `beelzebub-example/configurations/services/ssh-22-enhanced.yaml`
+
+- Modify: Commands and response patterns          • production_dbpsql -h localhost -p 5432 -U postgres
+
+
+
+**Edit HTTP Pages**:          • customer_data```
+
+- File: `beelzebub-example/configurations/services/http-8080-admin.yaml`
+
+- Customize: HTML content, endpoints          • payment_info
+
+
+
+### Add New Services          ↓### View Logs
+
+
+
+1. Create YAML file in `beelzebub-example/configurations/services/`Attacker → Clicks on databases (captured)
+
+2. Define protocol, port, and handlers
+
+3. Add port mapping to `docker-compose-beelzebub.yml`          ↓**Dashboard** (Easiest):
+
+4. Restart honeypot
+
+Honeypot → ✅ LOGGED all interactions1. Go to "🍯 Honeypot" page
+
+**Example FTP Service**:
+
+```yaml```2. Click service buttons (SSH, HTTP, etc.)
+
+apiVersion: "v1"
+
+protocol: "tcp"3. See formatted logs
+
+address: ":21"
+
+description: "FTP Honeypot"---
+
+
+
+handlers:**Web Interface**:
+
+  - pattern: "^USER (.+)$"
+
+    response: "331 Password required for $1"## 🚀 Quick Start- URL: `http://localhost:8888/logs`
+
+  - pattern: "^PASS (.+)$"
+
+    response: "230 Login successful"- Real-time updates
+
+```
+
+### Prerequisites- All services visible
+
+---
+
+- **Windows 10/11** with WSL2
+
+## Troubleshooting
+
+- **Docker Desktop** installed and running**Raw Files**:
+
+### Honeypot Won't Start
+
+- **API Keys**: GLM-4.5 via Anthropic (optional, falls back to regex)- Location: `honey_pot/logs/`
+
+**Diagnostics**:
+
+```batch- Files: `ssh-22.log`, `http-8080.log`, `attacks.jsonl`
+
+# Check if networks exist
+
+wsl docker network ls | findstr "honeypot_net custom_net"### Installation Steps
+
+
+
+# Create networks if missing---
+
+wsl docker network create --subnet=192.168.7.0/24 honeypot_net
+
+1. **Navigate to honeypot directory**
+
+# Check container status
+
+wsl docker ps -a | findstr beelzebub   ```bash## 🎯 IP Rerouting
+
+
+
+# View container logs   cd e:\nos\Network_Security_poc\honey_pot
+
+wsl docker logs beelzebub-honeypot
+
+```   ```### When to Use
+
+
+
+### No Attacks Showing
+
+
+
+**Reason**: Honeypot operates in passive mode - it waits for attackers to connect.2. **Configure API keys** (Optional - for AI responses)Reroute suspicious IPs when you want to:
+
+
+
+**Solutions**:   - 🔍 **Monitor specific device** behavior
+
+1. Test manually (see Testing section)
+
+2. Manually reroute a suspicious device IP   Edit `.env` file:- 🚨 **Contain potential threat** in isolated environment
+
+3. Wait for real attackers to discover it
+
+4. Verify logs exist: `dir honey_pot\logs`   ```env- 📊 **Gather detailed intelligence** on specific attacker
+
+
+
+### Reroute Not Working   GLM_KEY=your_glm_key_here- 🛡️ **Protect real systems** from suspicious activity
+
+
+
+**Diagnostics**:   ANTHROPIC_API_KEY=your_anthropic_key_here
+
+```batch
+
+# Check container exists   ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic### How to Reroute
+
+wsl docker ps | findstr <container_name>
+
+   ```
+
+# Check network connectivity
+
+wsl docker network inspect honeypot_net**Via Dashboard**:
+
+wsl docker network inspect custom_net
+
+   > **Note**: If you don't have API keys, the honeypot will use fallback regex-based responses (still functional!)
+
+# View dashboard logs
+
+# Look for: "Found container: ...", "Rerouting..."1. Open Dashboard: `http://localhost:5000`
+
+```
+
+3. **Start the honeypot**2. Go to "🍯 Honeypot" page
+
+### Port Already in Use
+
+   3. Scroll to "🔄 Reroute Device/Attacker to Honeypot"
+
+**Identify Process**:
+
+```batch   **Option A: Using Quick Start Script (Recommended)**4. Enter IP address (e.g., `192.168.6.132`)
+
+# Check what's using ports
+
+netstat -ano | findstr "2222 8080 8888"   ```bash5. Click "🎯 Reroute to Honeypot"
+
+
+
+# Kill the process   start_beelzebub_simple.bat6. Container is moved to isolated network
+
+taskkill /PID <process_id> /F
+
+   ```7. View rerouted IPs in "Currently Rerouted IPs" section
+
+# Or change ports in docker-compose-beelzebub.yml
+
+```
+
+
+
+### Logs Not Appearing   **Option B: Manual Docker Compose****What Happens**:
+
+
+
+**Solutions**:   ```bash
+
+- Wait 30 seconds after starting
+
+- Try connecting to a service (SSH, HTTP)   wsl bash -c "docker compose -f docker-compose-simple.yml up -d"```
+
+- Check `logs/` directory exists
+
+- Verify container has write permissions   ```Step 1: Container is on custom_net (192.168.6.0/24)
+
+
+
+---        Can access: dashboard, monitor, other devices
+
+
+
+## File Structure4. **Verify services are running**
+
+
+
+```   ```bashStep 2: You reroute the IP
+
+honey_pot/
+
+├── README.md                          # Documentation   wsl bash -c "docker ps | grep beelzebub"        Dashboard executes:
+
+├── docker-compose-beelzebub.yml       # Deployment configuration
+
+├── start_beelzebub.bat                # Quick start script   ```        - docker network disconnect custom_net container_name
+
+├── stop_beelzebub.bat                 # Quick stop script
+
+│        - docker network connect honeypot_net container_name
+
+├── beelzebub-example/                 # Service configurations
+
+│   └── configurations/   Expected output:
 
 │       └── services/
 
+│           ├── ssh-22-enhanced.yaml   # AI-powered SSH   ```Step 3: Container now on honeypot_net (192.168.7.0/24)
+
+│           ├── http-8080-admin.yaml   # Fake admin panel
+
+│           └── *.yaml                 # Additional services   beelzebub-honeypot    Up    0.0.0.0:2222->22/tcp, 0.0.0.0:8080->80/tcp, ...        Can ONLY access: honeypot (192.168.7.100)
+
+│
+
+├── logs/                              # Attack logs   beelzebub-log-viewer  Up    0.0.0.0:8888->80/tcp        Isolated from: everything else
+
+│   ├── attacks.jsonl                  # Structured attack data
+
+│   ├── ssh-22.log                     # SSH interactions   ```        All actions: logged in honeypot
+
+│   ├── http-8080.log                  # HTTP requests
+
+│   └── reroutes.log                   # Reroute history
+
+│
+
+└── beelzebub/                         # Official framework source---Step 4: Review Analytics page
+
+    └── ...
+
+```        See: what commands they tried
+
+
+
+---## ⚙️ Configuration             what services they accessed
+
+
+
+## Additional Resources             what data they attempted to steal
+
+
+
+### Service Endpoints### File Structure```
+
+
+
+| Service | Host Port | Container Port | Purpose |```
+
+|---------|-----------|----------------|---------|
+
+| SSH | 2222 | 22 | AI-powered shell honeypot |honey_pot/### Remove Reroute
+
+| HTTP | 8080 | 80 | Fake phpMyAdmin interface |
+
+| HTTPS | 8443 | 443 | Secure HTTP (future use) |├── docker-compose-simple.yml    # Main deployment configuration
+
+| FTP | 2121 | 21 | FTP honeypot |
+
+| Telnet | 2323 | 23 | Telnet honeypot |├── .env                         # API keys and environment variables1. Go to "Currently Rerouted IPs" section
+
+| MySQL | 3306 | 3306 | Database honeypot |
+
+| PostgreSQL | 5432 | 5432 | Database honeypot |├── .env.example                 # Template for environment setup2. Click "❌ Remove" next to the IP
+
+| Log Viewer | 8888 | 80 | Web-based log browser |
+
+├── start_beelzebub_simple.bat  # Quick start script3. Container returns to main network
+
+### Useful Commands
+
+├── stop_beelzebub_simple.bat   # Quick stop script
+
+**View Running Containers**:
+
+```bash├── beelzebub-example/---
+
+wsl bash -c "docker ps"
+
+```│   └── configurations/
+
+
+
+**Monitor Resource Usage**:│       ├── beelzebub.yaml      # Core honeypot config## 📊 Logs & Analytics
+
+```bash
+
+wsl bash -c "docker stats beelzebub-honeypot"│       └── services/
+
+```
+
 │           ├── ssh-22-enhanced.yaml      # SSH service + AI config### Analytics Dashboard
 
-│           ├── http-8080-admin.yaml      # HTTP/phpMyAdmin service
+**Execute Container Command**:
 
-│           ├── tcp-3306.yaml             # MySQL service**Access**: Dashboard → "📈 Analytics" page
+```bash│           ├── http-8080-admin.yaml      # HTTP/phpMyAdmin service
 
-│           └── tcp-5432.yaml             # PostgreSQL service
+wsl bash -c "docker exec beelzebub-honeypot [command]"
 
-└── logs/**What You See**:
+```│           ├── tcp-3306.yaml             # MySQL service**Access**: Dashboard → "📈 Analytics" page
+
+
+
+**View Container Configuration**:│           └── tcp-5432.yaml             # PostgreSQL service
+
+```bash
+
+wsl bash -c "docker inspect beelzebub-honeypot"└── logs/**What You See**:
+
+```
 
     ├── beelzebub.log           # Main log file (JSONL)
 
-    └── attacks.jsonl           # Parsed attack data- **📈 Summary Stats**
+**Export Logs for Analysis**:
 
-```  - Total attacks
+```bash    └── attacks.jsonl           # Parsed attack data- **📈 Summary Stats**
 
-  - Unique attackers
+copy logs\beelzebub.log E:\analysis\honeypot_logs_%date%.jsonl
 
-### Service Configuration  - Attack rate (attacks/minute)
-
-  - Most targeted port
-
-#### SSH Service (`ssh-22-enhanced.yaml`)
-
-- **Protocol**: SSH- **🎯 Top Attackers**
-
-- **Port**: 22 (mapped to 2222 on host)  - Ranked list of IPs
-
-- **AI Model**: GLM-4.5 via Anthropic  - Attack count and percentage
-
-- **Features**:  - Threat level (High/Medium/Low)
-
-  - Realistic shell simulation
-
-  - Weak password honeypot (root, admin, password, 123456)- **🌐 Protocol Distribution**
-
-  - Command logging and AI-generated responses  - Visual bars showing attack types
-
-  - Fake system files (.env, id_rsa, docker configs)  - HTTP, SSH, MySQL breakdown
+``````  - Total attacks
 
 
 
-#### HTTP Service (`http-8080-admin.yaml`)- **📍 Most Targeted URLs**
+---  - Unique attackers
 
-- **Protocol**: HTTP  - What paths attackers tried
 
-- **Port**: 80 (mapped to 8080 on host)  - `/admin`, `/login`, `/api`, etc.
 
-- **Simulation**: Fake phpMyAdmin interface
+## Security Warnings### Service Configuration  - Attack rate (attacks/minute)
 
-- **Features**:- **🖥️ User Agents**
 
-  - Login page with credential capture  - Tools attackers used
+
+1. **Network Isolation**: Honeypot runs in isolated Docker network. Ensure proper firewall rules before internet exposure.  - Most targeted port
+
+
+
+2. **Resource Limits**: Monitor system resources - aggressive attacks can consume CPU/memory.#### SSH Service (`ssh-22-enhanced.yaml`)
+
+
+
+3. **Legal Compliance**: Ensure deployment complies with organizational security policies and legal requirements.- **Protocol**: SSH- **🎯 Top Attackers**
+
+
+
+4. **API Key Security**: Keep `.env` file secure. Never commit to version control.- **Port**: 22 (mapped to 2222 on host)  - Ranked list of IPs
+
+
+
+5. **Regular Monitoring**: Review logs regularly to detect sophisticated attacks that might escape containment.- **AI Model**: GLM-4.5 via Anthropic  - Attack count and percentage
+
+
+
+---- **Features**:  - Threat level (High/Medium/Low)
+
+
+
+## Summary  - Realistic shell simulation
+
+
+
+### Honeypot Capabilities  - Weak password honeypot (root, admin, password, 123456)- **🌐 Protocol Distribution**
+
+
+
+**Automatic Functions**:  - Command logging and AI-generated responses  - Visual bars showing attack types
+
+- Passively waits for attackers on network
+
+- Logs all interactions automatically  - Fake system files (.env, id_rsa, docker configs)  - HTTP, SSH, MySQL breakdown
+
+- Does NOT scan your network
+
+- Does NOT reroute IPs automatically
+
+
+
+**Manual Operations Required**:#### HTTP Service (`http-8080-admin.yaml`)- **📍 Most Targeted URLs**
+
+- Start honeypot via dashboard or script
+
+- Monitor Analytics page for attack data- **Protocol**: HTTP  - What paths attackers tried
+
+- Manually reroute suspicious IPs when needed
+
+- Review logs regularly for security insights- **Port**: 80 (mapped to 8080 on host)  - `/admin`, `/login`, `/api`, etc.
+
+
+
+### Benefits- **Simulation**: Fake phpMyAdmin interface
+
+
+
+- Safe environment for studying attacker behavior- **Features**:- **🖥️ User Agents**
+
+- Rich data collection on attack patterns and tools
+
+- Protection of real systems from malicious activity  - Login page with credential capture  - Tools attackers used
+
+- Educational insights into threat actor tactics
 
   - Fake database dashboard  - curl, Python scripts, browsers
 
+---
+
   - Realistic database structure display
+
+## Support
 
 - **🔍 Detailed Profiles**
 
-#### Database Services  - Per-attacker analysis
+For issues, questions, or contributions:
 
-- **MySQL** (`tcp-3306.yaml`): Port 3306, Banner: "8.0.29"  - Commands they tried
+- Check logs: `docker logs beelzebub-honeypot`#### Database Services  - Per-attacker analysis
+
+- Review configuration: `beelzebub-example/configurations/`
+
+- Security dashboard: `http://localhost:5000`- **MySQL** (`tcp-3306.yaml`): Port 3306, Banner: "8.0.29"  - Commands they tried
+
+- Official Beelzebub: https://github.com/mariocandela/beelzebub
 
 - **PostgreSQL** (`tcp-5432.yaml`): Port 5432, Banner: "9.6.0"  - Services they targeted
 
+---
+
   - URLs they accessed
 
-### Environment Variables
+**Version**: 1.0  
+
+**Last Updated**: October 2025  ### Environment Variables
+
+**Status**: Production Ready
 
 - **📋 Raw Logs**
 
@@ -1226,3 +1886,59 @@ For issues, questions, or contributions:
 ---
 
 **Happy Hunting! 🍯🐝**
+
+
+
+Beelzebub Honeypot - Simple Summary
+What Is It?
+A fake vulnerable server that tricks hackers into attacking it instead of your real systems. It records everything they do.
+How It Works
+The honeypot is PASSIVE:
+
+Sits on your network with IP 192.168.6.200
+Opens fake services (SSH, databases, web pages)
+Waits for attackers to find it
+Logs everything when they connect
+You review what they tried in the dashboard
+
+Key Point: It does NOT scan your network. Attackers must come to it.
+What Attackers See
+ServiceWhat It Looks LikeSSH (Port 2222)Fake Linux server with root accessHTTP (Port 8080)Fake phpMyAdmin admin panelMySQL (Port 3306)Fake database serverPostgreSQL (Port 5432)Fake database server
+Everything looks real but is completely fake and isolated.
+What Gets Logged
+✅ Every command attackers type
+✅ Passwords they try
+✅ Their IP addresses
+✅ What tools they use
+✅ What files they try to access
+Quick Start
+Easiest way:
+
+Open dashboard: http://localhost:5000
+Click "🍯 Honeypot" in sidebar
+Click "▶️ Start Honeypot"
+Done! It's now waiting for attacks
+
+View attacks:
+
+Dashboard → "📈 Analytics" page
+See who attacked, when, and what they tried
+
+Optional: Trap Specific Devices
+If you spot a suspicious IP (like 192.168.6.132):
+
+Go to Honeypot page
+Enter the IP address
+Click "🎯 Reroute"
+That device is now trapped and can only talk to the honeypot
+Everything it does is logged
+
+The Point
+Instead of attackers hitting your real systems, they hit the honeypot:
+
+🛡️ Your real systems stay safe
+📊 You learn what attackers are trying
+🎯 You can study their methods
+🚨 You get early warning of threats
+
+It's like a security camera, but for hackers.

@@ -166,6 +166,47 @@ def get_status():
     
     # Count devices
     device_containers = [c for c in containers if c['name'].startswith('device_')]
+    # Discover devices by network (custom_net vs honeypot_net)
+    production_devices = []
+    honeypot_devices = []
+    try:
+        for c in containers:
+            # Inspect container network settings
+            inspect_cmd = f"docker inspect --format '{{{{json .NetworkSettings.Networks}}}}' {c['name']}"
+            net_info = run_wsl_command(inspect_cmd)
+            networks = {}
+            ip_address = None
+            if net_info['success'] and net_info['output'].strip():
+                try:
+                    networks = json.loads(net_info['output'])
+                    # Get first IP if available
+                    for net_name, net_obj in networks.items():
+                        ip = net_obj.get('IPAddress')
+                        if ip:
+                            ip_address = ip
+                            break
+                except Exception:
+                    networks = {}
+
+            entry = {
+                'name': c['name'],
+                'status': c['status'],
+                'image': c['image'],
+                'ip': ip_address,
+                'networks': list(networks.keys())
+            }
+
+            if 'honeypot_net' in networks:
+                honeypot_devices.append(entry)
+            elif 'custom_net' in networks or (ip_address and ip_address.startswith('192.168.6.')):
+                production_devices.append(entry)
+            else:
+                # Unknown network - treat as production by default
+                production_devices.append(entry)
+    except Exception:
+        # On error, leave lists empty - status will still include basic containers
+        production_devices = []
+        honeypot_devices = []
     
     # Check honeypot
     honeypot_running = any('honeypot' in c['name'] for c in containers)
@@ -185,9 +226,11 @@ def get_status():
             'count': len(device_containers),
             'containers': device_containers
         },
+        'production_devices': production_devices,
         'honeypot': {
             'running': honeypot_running,
-            'containers': [c for c in containers if 'honeypot' in c['name']]
+            'containers': [c for c in containers if 'honeypot' in c['name']],
+            'devices': honeypot_devices
         },
         'attackers': {
             'running': attacker_running,
@@ -242,16 +285,17 @@ def delete_network():
 def list_devices():
     """List all device containers"""
     
-    result = run_wsl_command('docker ps -a --filter name=device_ --format "{{.Names}}|{{.Status}}|{{.ID}}"')
+    # Check both vdevice_ and device_ naming patterns
+    result = run_wsl_command('docker ps -a --filter name=device --format "{{.Names}}|{{.Status}}|{{.ID}}"')
     
     devices = []
     if result['success']:
         for line in result['output'].strip().split('\n'):
-            if line:
+            if line and ('vdevice_' in line or 'device_' in line):
                 parts = line.split('|')
                 if len(parts) >= 3:
-                    # Extract device number from name like device_1, device_2
-                    match = re.search(r'device_(\d+)', parts[0])
+                    # Extract device number from name like device_1, device_2, vdevice_001, etc.
+                    match = re.search(r'(?:v)?device_(\d+)', parts[0])
                     device_id = match.group(1) if match else 'unknown'
                     
                     devices.append({
@@ -330,7 +374,12 @@ def create_device():
 def delete_device(device_id):
     """Delete a device container and clean up"""
     
-    device_name = f"device_{device_id}"
+    # Try both naming conventions: vdevice_XXX and device_XXX
+    device_name = f"vdevice_{device_id}" if not device_id.startswith('device') else device_id
+    
+    # If device_id is just a number like "001", try vdevice_001
+    if device_id.isdigit() or (len(device_id) == 3 and device_id.isdigit()):
+        device_name = f"vdevice_{device_id}"
     
     # Stop container
     stop_result = run_wsl_command(f'docker stop {device_name}')
@@ -425,9 +474,9 @@ def start_honeypot():
     """Start Beelzebub honeypot system"""
     
     # Ensure honeypot_net exists
-    honeypot_check = run_wsl_command('docker network ls | grep honey_pot_honeypot_net')
-    if not (honeypot_check['success'] and 'honey_pot_honeypot_net' in honeypot_check['output']):
-        create_result = run_wsl_command('docker network create --subnet=192.168.7.0/24 honey_pot_honeypot_net')
+    honeypot_check = run_wsl_command('docker network ls | grep honeypot_net')
+    if not (honeypot_check['success'] and 'honeypot_net' in honeypot_check['output']):
+        create_result = run_wsl_command('docker network create --subnet=192.168.7.0/24 honeypot_net')
         if not create_result['success']:
             return jsonify({
                 'success': False,
@@ -458,9 +507,23 @@ def stop_honeypot():
 def get_honeypot_logs():
     """Get Beelzebub honeypot logs"""
     
-    logs_file = os.path.join(HONEYPOT_DIR, 'logs', 'beelzebub.log')
+    # Beelzebub creates multiple log files
+    log_files = {
+        'attacks': os.path.join(HONEYPOT_DIR, 'logs', 'attacks.jsonl'),
+        'ssh': os.path.join(HONEYPOT_DIR, 'logs', 'ssh-22.log'),
+        'http': os.path.join(HONEYPOT_DIR, 'logs', 'http-8080.log'),
+        'mysql': os.path.join(HONEYPOT_DIR, 'logs', 'mysql-3306.log'),
+        'postgres': os.path.join(HONEYPOT_DIR, 'logs', 'postgresql-5432.log')
+    }
     
-    if not os.path.exists(logs_file):
+    # Try to find any existing log file
+    existing_log = None
+    for log_type, log_path in log_files.items():
+        if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
+            existing_log = log_path
+            break
+    
+    if not existing_log:
         return jsonify({
             'success': True,
             'logs': [],
@@ -470,8 +533,8 @@ def get_honeypot_logs():
     
     logs = []
     try:
-        # Read JSONL log file
-        with open(logs_file, 'r', encoding='utf-8', errors='ignore') as f:
+        # Read JSONL or text log file
+        with open(existing_log, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
             # Get last 100 lines
             for line in lines[-100:]:
@@ -495,7 +558,8 @@ def get_honeypot_logs():
         return jsonify({
             'success': True,
             'logs': logs,
-            'count': len(logs)
+            'count': len(logs),
+            'log_file': os.path.basename(existing_log)
         })
     except Exception as e:
         return jsonify({
@@ -559,9 +623,14 @@ def get_honeypot_attackers():
     from collections import defaultdict
     from datetime import datetime
     
-    logs_file = os.path.join(HONEYPOT_DIR, 'logs', 'beelzebub.log')
+    # Beelzebub creates attacks.jsonl with structured attack data
+    # Also check network_attacks.jsonl for DoS/flood attacks (hping3, etc.)
+    attacks_file = os.path.join(HONEYPOT_DIR, 'logs', 'attacks.jsonl')
+    network_attacks_file = os.path.join(HONEYPOT_DIR, 'logs', 'network_attacks.jsonl')
+    ssh_log = os.path.join(HONEYPOT_DIR, 'logs', 'ssh-22.log')
+    http_log = os.path.join(HONEYPOT_DIR, 'logs', 'http-8080.log')
     
-    if not os.path.exists(logs_file):
+    if not os.path.exists(attacks_file) and not os.path.exists(ssh_log) and not os.path.exists(http_log) and not os.path.exists(network_attacks_file):
         return jsonify({
             'success': True,
             'attackers': [],
@@ -570,7 +639,8 @@ def get_honeypot_attackers():
             'credentials_tried': [],
             'commands_executed': [],
             'http_requests': [],
-            'rerouted_devices': []
+            'rerouted_devices': [],
+            'message': 'No attack logs found. Start honeypot and wait for connections.'
         })
     
     # Parse logs and extract attacker data
@@ -593,41 +663,132 @@ def get_honeypot_attackers():
     total_attacks = 0
     
     try:
-        with open(logs_file, 'r', encoding='utf-8', errors='ignore') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                
-                try:
-                    log_entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                
-                # Extract attacker IP (if available in log)
-                # Beelzebub logs might not have IP directly, we need to parse from connections
-                # For now, we'll track service interactions and extract what we can
-                
-                msg = log_entry.get('msg', '')
-                level = log_entry.get('level', '')
-                timestamp = log_entry.get('time', '')
-                port = log_entry.get('port', '')
-                
-                # Track SSH service interactions
-                if 'ssh' in msg.lower() or port == ':22':
+        # Read attacks.jsonl if it exists
+        if os.path.exists(attacks_file) and os.path.getsize(attacks_file) > 0:
+            with open(attacks_file, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        attack = json.loads(line)
+                        total_attacks += 1
+                        
+                        # Extract attacker IP
+                        ip = attack.get('source_ip', attack.get('ip', 'unknown'))
+                        if ip and ip != 'unknown':
+                            attackers_data[ip]['ip'] = ip
+                            attackers_data[ip]['total_interactions'] += 1
+                            
+                            # Track timestamps
+                            timestamp = attack.get('timestamp', attack.get('time', ''))
+                            if timestamp:
+                                if not attackers_data[ip]['first_seen']:
+                                    attackers_data[ip]['first_seen'] = timestamp
+                                attackers_data[ip]['last_seen'] = timestamp
+                            
+                            # Track protocol/service
+                            protocol = attack.get('protocol', attack.get('service', ''))
+                            if protocol:
+                                attackers_data[ip]['protocols'].add(protocol)
+                            
+                            # Track port
+                            port = attack.get('port', '')
+                            if port:
+                                attackers_data[ip]['ports'].add(str(port))
+                            
+                            # Track credentials if present
+                            username = attack.get('username', attack.get('user', ''))
+                            password = attack.get('password', attack.get('pass', ''))
+                            if username or password:
+                                cred = {'username': username, 'password': password, 'ip': ip}
+                                attackers_data[ip]['credentials'].append(cred)
+                                all_credentials.append(cred)
+                            
+                            # Track commands if present
+                            command = attack.get('command', attack.get('cmd', ''))
+                            if command:
+                                cmd_entry = {'command': command, 'ip': ip, 'time': timestamp}
+                                attackers_data[ip]['commands'].append(cmd_entry)
+                                all_commands.append(cmd_entry)
+                            
+                            # Track HTTP requests
+                            http_path = attack.get('path', attack.get('url', ''))
+                            http_method = attack.get('method', 'GET')
+                            if http_path:
+                                http_req = {'method': http_method, 'path': http_path, 'ip': ip, 'time': timestamp}
+                                attackers_data[ip]['http_requests'].append(http_req)
+                                all_http_requests.append(http_req)
+                        
+                    except json.JSONDecodeError:
+                        continue
+        
+        # Read network_attacks.jsonl for DoS/flood attacks (hping3, etc.)
+        if os.path.exists(network_attacks_file) and os.path.getsize(network_attacks_file) > 0:
+            with open(network_attacks_file, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        attack = json.loads(line)
+                        total_attacks += 1
+                        
+                        # Extract attacker IP and container name
+                        ip = attack.get('source_ip', 'unknown')
+                        container = attack.get('source_container', '')
+                        attack_type = attack.get('attack_type', 'Network Flood')
+                        packet_count = attack.get('packet_count', 0)
+                        
+                        if ip and ip != 'unknown':
+                            attackers_data[ip]['ip'] = ip
+                            attackers_data[ip]['total_interactions'] += 1
+                            
+                            # Track timestamps
+                            timestamp = attack.get('timestamp', '')
+                            if timestamp:
+                                if not attackers_data[ip]['first_seen']:
+                                    attackers_data[ip]['first_seen'] = timestamp
+                                attackers_data[ip]['last_seen'] = timestamp
+                            
+                            # Track protocol
+                            protocol = attack.get('protocol', 'network_flood')
+                            attackers_data[ip]['protocols'].add(f"{attack_type} ({protocol})")
+                            
+                            # Add packet count info to commands section
+                            if packet_count > 0:
+                                cmd_entry = {
+                                    'command': f"DoS Flood: {packet_count} packets/5s",
+                                    'ip': ip,
+                                    'time': timestamp
+                                }
+                                attackers_data[ip]['commands'].append(cmd_entry)
+                                all_commands.append(cmd_entry)
+                    
+                    except json.JSONDecodeError:
+                        continue
+        
+        # Also read SSH logs for additional data
+        if os.path.exists(ssh_log) and os.path.getsize(ssh_log) > 0:
+            with open(ssh_log, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
                     total_attacks += 1
-                    # This is a simplified extraction - Beelzebub actual logs will have more detail
-                    # You would need to enhance this based on actual log format
-                
-                # Track HTTP interactions
-                if 'http' in msg.lower() or port == ':8080' or port == ':80':
+                    # Parse SSH log entries (format may vary)
+                    # This is a placeholder - actual parsing depends on Beelzebub log format
+        
+        # Also read HTTP logs
+        if os.path.exists(http_log) and os.path.getsize(http_log) > 0:
+            with open(http_log, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
                     total_attacks += 1
         
         # Get rerouted devices
         rerouted_devices = []
         try:
             # Check containers on honeypot network
-            honeypot_inspect = run_wsl_command('docker network inspect honey_pot_honeypot_net --format "{{json .Containers}}"')
+            honeypot_inspect = run_wsl_command('docker network inspect honeypot_net --format "{{json .Containers}}"')
             
             if honeypot_inspect['success'] and honeypot_inspect['output'].strip() != '{}':
                 honeypot_containers = json.loads(honeypot_inspect['output'].strip())
@@ -712,16 +873,18 @@ def reroute_to_honeypot():
             'message': 'Invalid IP address format'
         })
     
-    honeypot_network = 'honey_pot_honeypot_net'
+    honeypot_network = 'honeypot_net'
     honeypot_ip = '192.168.7.100'  # Beelzebub honeypot IP
     
     print(f"🔄 Rerouting {ip_address} to honeypot network")
     
-    # Find container with this IP address
+    # Find container with this IP address - first try custom_net
     find_simple_cmd = f'docker ps --format "{{{{.Names}}}}" --filter "network=custom_net"'
     
     simple_result = run_wsl_command(find_simple_cmd)
     container_candidates = simple_result['output'].strip().split('\n') if simple_result['success'] else []
+    
+    print(f"🔍 Found {len(container_candidates)} containers on custom_net: {container_candidates}")
     
     # For each candidate, check if it has the target IP
     container_name = ''
@@ -733,14 +896,61 @@ def reroute_to_honeypot():
         check_ip_cmd = f'docker inspect {candidate} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
         ip_result = run_wsl_command(check_ip_cmd)
         
-        if ip_result['success'] and ip_result['output'].strip() == ip_address:
+        container_ip = ip_result['output'].strip() if ip_result['success'] else ''
+        print(f"  Checking {candidate}: IP = {container_ip} (looking for {ip_address})")
+        
+        if ip_result['success'] and container_ip == ip_address:
             container_name = candidate
+            print(f"  ✅ MATCH FOUND: {candidate}")
             break
     
+    # If not found on custom_net, search all running containers
     if not container_name:
+        print(f"⚠️ Not found on custom_net, searching all containers...")
+        all_containers_cmd = 'docker ps --format "{{{{.Names}}}}"'
+        all_result = run_wsl_command(all_containers_cmd)
+        all_candidates = all_result['output'].strip().split('\n') if all_result['success'] else []
+        
+        for candidate in all_candidates:
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            
+            # Check all networks this container is on
+            networks_cmd = f'docker inspect {candidate} --format "{{{{json .NetworkSettings.Networks}}}}"'
+            networks_result = run_wsl_command(networks_cmd)
+            
+            if networks_result['success']:
+                # Parse networks and check IPs
+                import json as json_lib
+                try:
+                    networks = json_lib.loads(networks_result['output'].strip())
+                    for network_name, network_info in networks.items():
+                        network_ip = network_info.get('IPAddress', '')
+                        print(f"  Checking {candidate} on {network_name}: IP = {network_ip}")
+                        if network_ip == ip_address:
+                            container_name = candidate
+                            print(f"  ✅ MATCH FOUND: {candidate} on {network_name}")
+                            
+                            # If found on a different network, reconnect to custom_net first
+                            if network_name != 'custom_net':
+                                print(f"  Reconnecting {candidate} to custom_net...")
+                                reconnect_cmd = f'docker network connect custom_net {candidate}'
+                                run_wsl_command(reconnect_cmd)
+                            break
+                except:
+                    pass
+            
+            if container_name:
+                break
+    
+    if not container_name:
+        error_msg = f'No container found with IP {ip_address}. Container may be stopped or IP changed.'
+        print(f"❌ {error_msg}")
+        print(f"   Checked containers: {container_candidates}")
         return jsonify({
             'success': False,
-            'message': f'No container found with IP {ip_address}. Make sure the device is running on custom_net.'
+            'message': error_msg
         })
     
     print(f"📦 Found container: {container_name}")
@@ -782,13 +992,30 @@ def reroute_to_honeypot():
     ip_result = run_wsl_command(get_ip_cmd)
     new_ip = ip_result['output'].strip() if ip_result['success'] else 'unknown'
     
-    # Step 5: Log the reroute
+    # Step 5: Log the reroute (with rotation - keep last 100 entries)
     log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Rerouted {container_name} ({ip_address}) to {honeypot_network} ({new_ip})"
     
     try:
         os.makedirs(os.path.join(HONEYPOT_DIR, 'logs'), exist_ok=True)
-        with open(os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log'), 'a') as f:
-            f.write(log_entry + '\n')
+        log_file = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
+        
+        # Read existing logs
+        existing_logs = []
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                existing_logs = [line.strip() for line in f if line.strip()]
+        
+        # Add new entry
+        existing_logs.append(log_entry)
+        
+        # Keep only last 100 entries (log rotation)
+        if len(existing_logs) > 100:
+            existing_logs = existing_logs[-100:]
+        
+        # Write back
+        with open(log_file, 'w') as f:
+            for log in existing_logs:
+                f.write(log + '\n')
     except Exception as e:
         print(f"Warning: Could not write to reroutes log: {e}")
     
@@ -809,7 +1036,7 @@ def reroute_to_honeypot():
 def get_reroutes():
     """Get list of rerouted IPs"""
     
-    honeypot_network = 'honey_pot_honeypot_net'
+    honeypot_network = 'honeypot_net'
     
     # Read reroutes log
     reroutes_log = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
@@ -862,7 +1089,7 @@ def get_reroutes():
 def remove_reroute():
     """Remove reroute rule for specific IP - move container back to custom_net"""
     
-    honeypot_network = 'honey_pot_honeypot_net'
+    honeypot_network = 'honeypot_net'
     
     data = request.json
     container_name = data.get('container_name', '').strip()
@@ -895,11 +1122,28 @@ def remove_reroute():
     ip_result = run_wsl_command(get_ip_cmd)
     new_ip = ip_result['output'].strip() if ip_result['success'] else 'unknown'
     
-    # Log the restore
+    # Log the restore (with rotation - keep last 100 entries)
     log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Restored {container_name} to custom_net ({new_ip})"
     try:
-        with open(os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log'), 'a') as f:
-            f.write(log_entry + '\n')
+        log_file = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
+        
+        # Read existing logs
+        existing_logs = []
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                existing_logs = [line.strip() for line in f if line.strip()]
+        
+        # Add new entry
+        existing_logs.append(log_entry)
+        
+        # Keep only last 100 entries (log rotation)
+        if len(existing_logs) > 100:
+            existing_logs = existing_logs[-100:]
+        
+        # Write back
+        with open(log_file, 'w') as f:
+            for log in existing_logs:
+                f.write(log + '\n')
     except:
         pass
     
@@ -1330,8 +1574,8 @@ def get_network_map():
     # Get all containers on custom_net
     inspect_result = run_wsl_command('docker network inspect custom_net --format "{{json .Containers}}"')
     
-    # Get all containers on honey_pot_honeypot_net
-    honeypot_inspect = run_wsl_command('docker network inspect honey_pot_honeypot_net --format "{{json .Containers}}" 2>/dev/null || echo "{}"')
+    # Get all containers on honeypot_net
+    honeypot_inspect = run_wsl_command('docker network inspect honeypot_net --format "{{json .Containers}}" 2>/dev/null || echo "{}"')
     
     nodes = []
     connections = []
@@ -1382,11 +1626,35 @@ def get_network_map():
                 elif 'attacker' in container_name:
                     node_type = 'attacker'
                     display_name = 'DOS Attacker'
+                    
+                    # Get attacker details
+                    node_data = {
+                        'id': container_name,
+                        'name': display_name,
+                        'type': node_type,
+                        'ip': container_ip,
+                        'status': 'running',
+                        'container_id': container_id[:12],
+                        'attacker_info': {
+                            'attack_type': 'DoS/DDoS',
+                            'target': 'Network flooding',
+                            'threat_level': 'HIGH',
+                            'description': 'Simulated DoS attacker sending high-volume traffic'
+                        }
+                    }
                 else:
                     node_type = 'other'
                     display_name = container_name
+                    node_data = {
+                        'id': container_name,
+                        'name': display_name,
+                        'type': node_type,
+                        'ip': container_ip,
+                        'status': 'running',
+                        'container_id': container_id[:12]
+                    }
                 
-                nodes.append({
+                nodes.append(node_data if 'attacker' in container_name else {
                     'id': container_name,
                     'name': display_name,
                     'type': node_type,
@@ -1604,58 +1872,11 @@ def get_agent_status():
         'base_url': os.getenv('ANTHROPIC_BASE_URL', 'Not set')
     })
 
-@app.route('/api/agent/test-key', methods=['POST'])
-def test_anthropic_key():
-    """Test the Anthropic API key with a simple request"""
-    api_key = os.getenv('ANTHROPIC_API_KEY')
-    base_url = os.getenv('ANTHROPIC_BASE_URL')
-    
-    if not api_key:
-        return jsonify({
-            'success': False,
-            'error': 'ANTHROPIC_API_KEY not set in environment'
-        })
-    
-    try:
-        from anthropic import Anthropic
-        
-        client = Anthropic(
-            api_key=api_key,
-            base_url=base_url if base_url else None
-        )
-        
-        # Simple test request
-        response = client.messages.create(
-            model="glm-4.5",
-            max_tokens=20,
-            temperature=0.1,
-            system="You are a test.",
-            messages=[{"role": "user", "content": "Say 'test successful'"}]
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': 'API key is valid and working',
-            'model': 'glm-4.5',
-            'response': response.content[0].text if hasattr(response, 'content') else str(response),
-            'key_preview': f"{api_key[:20]}...{api_key[-10:]}"
-        })
-        
-    except Exception as e:
-        error_str = str(e)
-        return jsonify({
-            'success': False,
-            'error': error_str,
-            'error_type': type(e).__name__,
-            'key_preview': f"{api_key[:20]}...{api_key[-10:]}",
-            'is_subscription_error': '1309' in error_str or '429' in error_str
-        })
-
 @app.route('/api/agent/query', methods=['POST'])
 def agent_query():
-    """Process user query through AI agent - simplified version without MCP"""
+    """Forward ALL user queries to MCP Agent - Dashboard is just a bridge"""
     data = request.get_json()
-    query = data.get('query', '').strip().lower()
+    query = data.get('query', '').strip()
     
     if not query:
         return jsonify({
@@ -1664,263 +1885,72 @@ def agent_query():
         })
     
     try:
-        # Direct tool execution based on query keywords
-        response_text = ""
+        # Forward query to MCP agent via query_agent.py (CLI wrapper)
+        mcp_client_path = os.path.join(BASE_DIR, 'mcp_agent', 'query_agent.py')
         
-        # Analyze traffic
-        if any(word in query for word in ['analyze', 'traffic', 'network', 'threat', 'attack']):
-            output_path = os.path.join(NETWORK_DIR, 'analyze_output.txt')
-            analysis_data = ""
-            
-            # Try to read analyze_output.txt first
-            if os.path.exists(output_path):
-                try:
-                    with open(output_path, 'r', encoding='utf-8') as f:
-                        analysis_data = f.read().strip()
-                except Exception as e:
-                    analysis_data = ""
-            
-            # If analyze_output.txt is empty or has errors, try reading PCAP files directly
-            if not analysis_data or "Error analyzing capture" in analysis_data or "No data could be read" in analysis_data:
-                captures_dir = os.path.join(NETWORK_DIR, 'captures')
-                if os.path.exists(captures_dir):
-                    files = [f for f in os.listdir(captures_dir) if f.endswith('.pcap')]
-                    if files:
-                        # Get last 3 PCAP files
-                        sorted_files = sorted(files)
-                        last_3_files = sorted_files[-3:] if len(sorted_files) >= 3 else sorted_files
-                        
-                        try:
-                            from scapy.all import rdpcap, IP, TCP, UDP
-                            
-                            total_packets = 0
-                            all_src_ips = {}
-                            all_dst_ips = {}
-                            protocols = {'TCP': 0, 'UDP': 0, 'Other': 0}
-                            
-                            for pcap_file in last_3_files:
-                                file_path = os.path.join(captures_dir, pcap_file)
-                                if os.path.getsize(file_path) > 0:
-                                    try:
-                                        packets = rdpcap(file_path)
-                                        total_packets += len(packets)
-                                        
-                                        for pkt in packets:
-                                            if IP in pkt:
-                                                src = pkt[IP].src
-                                                dst = pkt[IP].dst
-                                                all_src_ips[src] = all_src_ips.get(src, 0) + 1
-                                                all_dst_ips[dst] = all_dst_ips.get(dst, 0) + 1
-                                                
-                                                if TCP in pkt:
-                                                    protocols['TCP'] += 1
-                                                elif UDP in pkt:
-                                                    protocols['UDP'] += 1
-                                                else:
-                                                    protocols['Other'] += 1
-                                    except:
-                                        pass
-                            
-                            # Build AGGRESSIVE analysis with threat detection
-                            if total_packets > 0:
-                                threats_detected = []
-                                critical_threats = []
-                                avg_packets = total_packets / len(all_src_ips) if all_src_ips else 0
-                                
-                                analysis_data = f"🚨 NETWORK SECURITY ANALYSIS\n"
-                                analysis_data += "=" * 70 + "\n"
-                                analysis_data += f"Analyzed Files: {', '.join(last_3_files)}\n"
-                                analysis_data += f"Total Packets: {total_packets:,}\n"
-                                analysis_data += f"Unique IPs: {len(all_src_ips)}\n"
-                                analysis_data += "=" * 70 + "\n\n"
-                                
-                                analysis_data += "📡 PROTOCOL DISTRIBUTION:\n"
-                                for proto, count in protocols.items():
-                                    if count > 0:
-                                        pct = (count / total_packets * 100)
-                                        analysis_data += f"   {proto:8s}: {count:6d} packets ({pct:5.1f}%)\n"
-                                analysis_data += "\n"
-                                
-                                analysis_data += "📤 TOP SOURCE IPs:\n"
-                                sorted_srcs = sorted(all_src_ips.items(), key=lambda x: x[1], reverse=True)[:5]
-                                for ip, count in sorted_srcs:
-                                    pct = (count / total_packets * 100)
-                                    analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
-                                analysis_data += "\n"
-                                
-                                analysis_data += "📥 TOP DESTINATION IPs:\n"
-                                sorted_dsts = sorted(all_dst_ips.items(), key=lambda x: x[1], reverse=True)[:5]
-                                for ip, count in sorted_dsts:
-                                    pct = (count / total_packets * 100)
-                                    analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
-                                analysis_data += "\n"
-                                
-                                # AGGRESSIVE THREAT DETECTION
-                                analysis_data += "🛡️  SECURITY THREAT ANALYSIS:\n"
-                                
-                                for src_ip, src_count in sorted_srcs[:10]:
-                                    pct_of_traffic = (src_count / total_packets * 100)
-                                    
-                                    if src_count > 1000 or pct_of_traffic > 50:
-                                        analysis_data += f"\n   🔴 CRITICAL THREAT: DoS/DDoS ATTACK from {src_ip}\n"
-                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of ALL traffic!)\n"
-                                        analysis_data += f"      → Attack Type: Flooding/DoS attack overwhelming the network\n"
-                                        analysis_data += f"      → ACTION REQUIRED: BLOCK THIS IP IMMEDIATELY!\n"
-                                        threats_detected.append(f"CRITICAL DoS Attack from {src_ip} ({src_count:,} packets)")
-                                        critical_threats.append(src_ip)
-                                        
-                                    elif src_count > 500 or src_count > (avg_packets * 4):
-                                        analysis_data += f"\n   🟠 HIGH THREAT: Suspicious high traffic from {src_ip}\n"
-                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of traffic)\n"
-                                        analysis_data += f"      → Likely Attack: DoS attempt or malicious bot activity\n"
-                                        analysis_data += f"      → ACTION: Reroute to honeypot for analysis or block\n"
-                                        threats_detected.append(f"HIGH: DoS attack from {src_ip} ({src_count:,} packets)")
-                                        
-                                    elif src_count > 200 or src_count > (avg_packets * 3):
-                                        analysis_data += f"\n   🟡 WARNING: Elevated traffic from {src_ip}\n"
-                                        analysis_data += f"      → Packet Volume: {src_count:,} packets ({pct_of_traffic:.1f}% of traffic)\n"
-                                        analysis_data += f"      → Possible: Malware, compromised device, or early DoS\n"
-                                        analysis_data += f"      → ACTION: Monitor closely, investigate device\n"
-                                        threats_detected.append(f"WARNING: High traffic from {src_ip} ({src_count:,} packets)")
-                                
-                                if not threats_detected:
-                                    analysis_data += "\n   ✅ No security threats detected\n"
-                                else:
-                                    analysis_data += f"\n{'='*70}\n"
-                                    analysis_data += f"⚠️  TOTAL THREATS DETECTED: {len(threats_detected)}\n"
-                                    if critical_threats:
-                                        analysis_data += f"🔴 CRITICAL THREATS: {len(critical_threats)} (Immediate action required!)\n"
-                                    analysis_data += f"{'='*70}\n"
-                        
-                        except ImportError:
-                            analysis_data = "Scapy not installed. Cannot analyze PCAP files directly.\n"
-                            analysis_data += "Install with: pip install scapy"
-                        except Exception as e:
-                            analysis_data = f"Error reading PCAP files: {str(e)}"
-            
-            # Now process the analysis data (whether from file or PCAP)
-            if analysis_data:
-                # Use AGGRESSIVE AI cybersecurity analyst
-                if os.getenv('ANTHROPIC_API_KEY'):
-                    try:
-                        from anthropic import Anthropic
-                        client = Anthropic(
-                            api_key=os.getenv('ANTHROPIC_API_KEY'),
-                            base_url=os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com')
-                        )
-                        
-                        # Check if threats were detected
-                        threat_context = ""
-                        if 'CRITICAL THREAT' in analysis_data or 'HIGH THREAT' in analysis_data:
-                            threat_context = (
-                                "⚠️⚠️⚠️ CRITICAL INSTRUCTION ⚠️⚠️⚠️\n"
-                                "SECURITY THREATS DETECTED in the network data below.\n"
-                                "You MUST classify these as ATTACKS, not 'normal communication'.\n"
-                                "DO NOT dismiss or downplay these threats!\n\n"
-                            )
-                        
-                        prompt = (
-                            "🚨 YOU ARE A STRICT CYBERSECURITY ANALYST AT A SOC 🚨\n\n"
-                            f"{threat_context}"
-                            "CRITICAL RULES:\n"
-                            "1. ANY IP sending >500 packets = DoS ATTACK (not 'normal')\n"
-                            "2. ANY IP sending >1000 packets = CRITICAL THREAT\n"
-                            "3. If threats are flagged in data, REPORT THEM AS ATTACKS\n"
-                            "4. DO NOT say 'appears normal' when threats detected\n\n"
-                            "YOUR REPORT MUST INCLUDE:\n"
-                            "🚨 THREAT LEVEL: [CRITICAL/HIGH/MEDIUM/LOW]\n"
-                            "🎯 ATTACK TYPE: DoS/Port Scan/Brute-force/None\n"
-                            "💀 MALICIOUS IPs: List IPs with >500 packets as ATTACKERS\n"
-                            "🛡️ ACTIONS: Specific steps to block/mitigate\n"
-                            "⏱️ URGENCY: Critical/High/Medium/Low\n\n"
-                            "Network data:\n" + analysis_data[:3000]
-                        )
-                        
-                        ai_response = client.messages.create(
-                            model="claude-3-5-sonnet-20241022",
-                            max_tokens=2048,
-                            temperature=0.1,
-                            messages=[{"role": "user", "content": prompt}]
-                        )
-                        
-                        response_text = ai_response.content[0].text
-                        
-                        # Add threat banner if critical threats
-                        if 'CRITICAL THREAT' in analysis_data:
-                            threat_banner = "🚨 ═══════════════════════════════════════\n"
-                            threat_banner += "🚨  SECURITY ALERT: ATTACK IN PROGRESS!  🚨\n"
-                            threat_banner += "🚨 ═══════════════════════════════════════\n\n"
-                            response_text = threat_banner + response_text
-                            
-                    except Exception as e:
-                        # Fallback to local summary
-                        err_str = str(e)
-                        fallback = local_summarize_analysis(analysis_data)
-                        response_text = (
-                            f"Network analysis available but AI summary failed: {err_str}\n\n"
-                            f"Fallback summary:\n{fallback}\n\n"
-                            f"Raw data (truncated):\n{analysis_data[:1000]}"
-                        )
-                else:
-                    response_text = f"Network Analysis:\n{analysis_data[:1000]}\n\n(Install Anthropic API key for AI-powered summaries)"
-            else:
-                response_text = "No network analysis data available. Please:\n"
-                response_text += "1. Start network monitoring\n"
-                response_text += "2. Generate some network traffic\n"
-                response_text += "3. Run the analysis tool or ask me to 'summarize pcap'"
+        if not os.path.exists(mcp_client_path):
+            return jsonify({
+                'success': False,
+                'error': 'MCP Agent not found. Please ensure mcp_agent/query_agent.py exists.'
+            })
         
-        # Reroute device - redirect to Quick Reroute tool
-        elif 'reroute' in query:
-            import re
-            ip_match = re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', query)
-            if ip_match:
-                device_ip = ip_match.group(0)
-                response_text = f"🔀 To reroute device {device_ip} to honeypot:\n\n"
-                response_text += "Use the '🔀 Quick Reroute' button below this chat, or:\n"
-                response_text += "1. Go to the Honeypot page\n"
-                response_text += "2. Enter the device IP\n"
-                response_text += "3. Click 'Reroute to Honeypot'\n\n"
-                response_text += "This will isolate the suspicious device for analysis."
-            else:
-                response_text = "Please specify the device IP address.\nExample: 'reroute device 192.168.6.10'"
+        # Use virtual environment's Python (E:\nos\.venv\Scripts\python.exe)
+        venv_python = r'E:\nos\.venv\Scripts\python.exe'
         
-        # Help/default
+        # Fallback to system python if venv not found
+        python_executable = venv_python if os.path.exists(venv_python) else 'python'
+        
+        # Set UTF-8 environment for subprocess to handle Unicode characters
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
+        # Run MCP agent with the user's query
+        result = subprocess.run(
+            [python_executable, mcp_client_path, query],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            timeout=60,
+            cwd=os.path.join(BASE_DIR, 'mcp_agent'),
+            env=env
+        )
+        
+        if result.returncode == 0:
+            response_text = result.stdout.strip()
+            return jsonify({
+                'success': True,
+                'response': response_text,
+                'source': 'MCP Agent'
+            })
         else:
-            response_text = """🤖 Network Security AI Agent
-
-Available Commands:
-
-• **analyze** / **analyze traffic** - Full network security analysis
-  - Detects DoS/DDoS attacks
-  - Identifies suspicious IPs
-  - Shows connected devices
-  - Provides threat level and actions
-
-• **status** - Quick network status check
-
-• **security** - Security assessment
-
-• **reroute device [IP]** - Instructions to isolate device
-
-Just type naturally - I understand commands like:
-  "analyze the network"
-  "what threats do you see"
-  "check security status"
-  "analyze traffic patterns"
-
-💡 Tip: Type "analyze" for a complete security report!"""
-        
+            error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+            return jsonify({
+                'success': False,
+                'error': f'MCP Agent error: {error_msg}',
+                'returncode': result.returncode
+            })
+            
+    except subprocess.TimeoutExpired:
         return jsonify({
-            'success': True,
-            'query': query,
-            'response': response_text
+            'success': False,
+            'error': 'MCP Agent timeout (60s). Query took too long to process.'
         })
-        
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': f'Dashboard error: {str(e)}',
+            'error_type': type(e).__name__
         })
+
+@app.route('/api/agent/test-key', methods=['POST'])
+def test_anthropic_key():
+    """DISABLED - API testing removed. Dashboard only forwards to MCP Agent."""
+    return jsonify({
+        'success': False,
+        'error': 'API test endpoint disabled.',
+        'message': 'Dashboard only forwards queries to MCP Agent. Use the chat interface instead.'
+    })
 
 @app.route('/api/agent/reroute', methods=['POST'])
 def agent_reroute_to_honeypot():
@@ -1935,49 +1965,112 @@ def agent_reroute_to_honeypot():
         })
     
     try:
-        # Find device container by IP
-        inspect_result = run_wsl_command('docker network inspect custom_net --format "{{json .Containers}}"')
+        print(f"🔄 [Quick Reroute] Attempting to reroute {device_ip}")
         
-        if not inspect_result['success']:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to inspect network'
-            })
+        # Find container with this IP - first try custom_net
+        find_cmd = f'docker ps --format "{{{{.Names}}}}" --filter "network=custom_net"'
+        result = run_wsl_command(find_cmd)
+        container_candidates = result['output'].strip().split('\n') if result['success'] else []
         
-        containers = json.loads(inspect_result['output'].strip())
         container_name = None
+        found_on_network = 'custom_net'
         
-        for container_id, info in containers.items():
-            container_ip = info.get('IPv4Address', '').split('/')[0]
+        # Search containers on custom_net
+        for candidate in container_candidates:
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            
+            check_ip_cmd = f'docker inspect {candidate} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
+            ip_result = run_wsl_command(check_ip_cmd)
+            
+            container_ip = ip_result['output'].strip() if ip_result['success'] else ''
             if container_ip == device_ip:
-                container_name = info.get('Name', '')
+                container_name = candidate
                 break
+        
+        # If not found on custom_net, search all containers and all networks
+        if not container_name:
+            print(f"  ⚠️ Not found on custom_net, searching all containers...")
+            all_containers_cmd = 'docker ps --format "{{{{.Names}}}}"'
+            all_result = run_wsl_command(all_containers_cmd)
+            all_candidates = all_result['output'].strip().split('\n') if all_result['success'] else []
+            
+            for candidate in all_candidates:
+                candidate = candidate.strip()
+                if not candidate:
+                    continue
+                
+                # Check all networks this container is on
+                networks_cmd = f'docker inspect {candidate} --format "{{{{json .NetworkSettings.Networks}}}}"'
+                networks_result = run_wsl_command(networks_cmd)
+                
+                if networks_result['success']:
+                    try:
+                        import json as json_lib
+                        networks = json_lib.loads(networks_result['output'].strip())
+                        for network_name, network_info in networks.items():
+                            network_ip = network_info.get('IPAddress', '')
+                            if network_ip == device_ip:
+                                container_name = candidate
+                                found_on_network = network_name
+                                print(f"  ✅ Found {candidate} with IP {device_ip} on {network_name}")
+                                
+                                # If found on a different network, reconnect to custom_net first
+                                if network_name != 'custom_net':
+                                    print(f"  Reconnecting {candidate} to custom_net...")
+                                    reconnect_cmd = f'docker network connect custom_net {candidate}'
+                                    run_wsl_command(reconnect_cmd)
+                                break
+                    except:
+                        pass
+                
+                if container_name:
+                    break
         
         if not container_name:
             return jsonify({
                 'success': False,
-                'error': f'No container found with IP {device_ip}'
+                'error': f'No container found with IP {device_ip}. Container may be stopped or IP changed.'
             })
+        
+        print(f"  📦 Found container: {container_name}")
+        
+        # Ensure honeypot network exists
+        create_net_cmd = 'docker network ls | grep honeypot_net || docker network create --subnet=192.168.7.0/24 honeypot_net'
+        run_wsl_command(create_net_cmd)
         
         # Disconnect from custom_net
         disconnect_cmd = f'docker network disconnect custom_net {container_name}'
         disconnect_result = run_wsl_command(disconnect_cmd)
         
-        if not disconnect_result['success']:
-            return jsonify({
-                'success': False,
-                'error': f'Failed to disconnect: {disconnect_result["error"]}'
-            })
+        if not disconnect_result['success'] and 'not connected' not in disconnect_result.get('error', '').lower():
+            print(f"  ⚠️ Disconnect warning: {disconnect_result.get('error', '')}")
         
         # Connect to honeypot network
-        connect_cmd = f'docker network connect honey_pot_honeypot_net {container_name}'
+        connect_cmd = f'docker network connect honeypot_net {container_name}'
         connect_result = run_wsl_command(connect_cmd)
         
         if not connect_result['success']:
+            # Rollback: reconnect to custom_net
+            reconnect_cmd = f'docker network connect custom_net {container_name}'
+            run_wsl_command(reconnect_cmd)
+            
             return jsonify({
                 'success': False,
-                'error': f'Failed to connect to honeypot: {connect_result["error"]}'
+                'error': f'Failed to connect to honeypot: {connect_result.get("error", "Unknown error")}'
             })
+        
+        # Log the reroute
+        log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] QUICK-REROUTE: {container_name} ({device_ip}) to honeypot\n"
+        try:
+            os.makedirs(os.path.join(HONEYPOT_DIR, 'logs'), exist_ok=True)
+            with open(os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log'), 'a') as f:
+                f.write(log_entry)
+        except:
+            pass
+        
+        print(f"  ✅ Successfully rerouted {container_name} to honeypot")
         
         return jsonify({
             'success': True,
@@ -1987,6 +2080,7 @@ def agent_reroute_to_honeypot():
         })
         
     except Exception as e:
+        print(f"  ❌ Error: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
