@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# Install essential network monitoring tools
+# Install essential network monitoring tools + SSH server
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -17,7 +17,24 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     libpcap0.8 \
     procps \
+    openssh-server \
     && rm -rf /var/lib/apt/lists/*
+
+# Setup SSH
+RUN mkdir -p /var/run/sshd && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh
+
+# Create test users for SSH brute force testing
+RUN useradd -m -s /bin/bash admin && echo "admin:admin123" | chpasswd && \
+    useradd -m -s /bin/bash test && echo "test:test123" | chpasswd && \
+    useradd -m -s /bin/bash user && echo "user:password" | chpasswd
+
+# Configure SSH to allow password authentication and log all attempts
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#LogLevel INFO/LogLevel VERBOSE/' /etc/ssh/sshd_config && \
+    echo "root:rootpassword" | chpasswd
 
 # Create app directory
 WORKDIR /app
@@ -40,7 +57,7 @@ RUN mkdir -p /captures && chmod 755 /captures
 RUN chmod +x /app/scripts/start_services.sh
 
 # Expose ports
-EXPOSE 5000 8080 8404
+EXPOSE 5000 8080 8404 22
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

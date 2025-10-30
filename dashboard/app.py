@@ -211,11 +211,13 @@ def get_status():
     # Check Beelzebub
     beelzebub_running = any('beelzebub' in c['name'].lower() for c in containers)
     
-    # Check attackers
-    attacker_running = any('attacker' in c['name'] for c in containers)
+    # Check attackers (distinguish between DOS and SSH)
+    dos_attacker_running = any(c['name'] == 'hping3-attacker' for c in containers)
+    ssh_attacker_running = any(c['name'] == 'ssh-attacker' for c in containers)
+    attacker_running = dos_attacker_running or ssh_attacker_running
     
     # Check network monitor (check both possible names)
-    monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan'] for c in containers)
+    monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor'] for c in containers)
     
     return jsonify({
         'network': {
@@ -234,11 +236,13 @@ def get_status():
         },
         'attackers': {
             'running': attacker_running,
+            'dos_running': dos_attacker_running,
+            'ssh_running': ssh_attacker_running,
             'containers': [c for c in containers if 'attacker' in c['name']]
         },
         'monitor': {
             'running': monitor_running,
-            'container': next((c for c in containers if c['name'] in ['monitor', 'net-monitor-wan']), None)
+            'container': next((c for c in containers if c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor']), None)
         },
         'all_containers': containers
     })
@@ -1508,6 +1512,58 @@ def stop_attackers():
         'message': 'Attackers stopped and iptables cleaned up' if result['success'] else result['error']
     })
 
+@app.route('/api/ssh_attacker/start', methods=['POST'])
+def start_ssh_attacker():
+    """Start SSH brute force attacker"""
+    
+    # Ensure network exists
+    network_check = run_wsl_command('docker network ls | grep custom_net')
+    if not (network_check['success'] and 'custom_net' in network_check['output']):
+        return jsonify({
+            'success': False,
+            'message': 'Network does not exist. Create network first.'
+        })
+    
+    # Start SSH attacker using docker compose
+    result = run_wsl_command('cd /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker && docker compose up -d --build')
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'SSH Attacker started successfully' if result['success'] else result['error'],
+        'output': result['output']
+    })
+
+@app.route('/api/ssh_attacker/stop', methods=['POST'])
+def stop_ssh_attacker():
+    """Stop SSH brute force attacker"""
+    
+    # First, clean up iptables rules for the SSH attacker (192.168.6.133)
+    cleanup_result = run_wsl_command('bash /mnt/e/nos/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.133')
+    
+    # Then stop the container
+    result = run_wsl_command('cd /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker && docker compose down')
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'SSH Attacker stopped and iptables cleaned up' if result['success'] else result['error']
+    })
+
+@app.route('/api/ssh_attacker/logs', methods=['GET'])
+def get_ssh_attacker_logs():
+    """Get SSH attacker logs"""
+    
+    # Get container logs
+    container_logs = run_wsl_command('docker logs --tail 100 ssh-attacker 2>&1')
+    
+    # Get summary log if exists
+    summary_logs = run_wsl_command('cat /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker/logs/ssh_summary.log 2>/dev/null || echo "No summary log yet"')
+    
+    return jsonify({
+        'success': True,
+        'container_logs': container_logs['output'] if container_logs['success'] else 'Container not running',
+        'summary_logs': summary_logs['output'] if summary_logs['success'] else 'No summary log'
+    })
+
 # ===== Network Monitor Server Control =====
 
 @app.route('/api/monitor/start', methods=['POST'])
@@ -2200,8 +2256,10 @@ def agent_reroute_to_beelzebub():
 if __name__ == '__main__':
     clear_old_data()  # Clear old data on startup
     print("🚀 Network Security Dashboard Starting...")
-    print("📊 Dashboard URL: http://localhost:5000")
+    print("📊 Dashboard URL: http://localhost:5100")
     print("🔧 Control your entire network security setup from the web UI")
-    print("📡 Device data receiver enabled on port 5000")
+    print("📡 Device data receiver enabled on port 5100")
     print("🤖 MCP AI Agent integrated - chat available in dashboard")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("⚠️  Note: Network monitor Flask API is on port 5000")
+    # Use port 5100 to avoid conflict with network-monitor on port 5000
+    app.run(host='0.0.0.0', port=5100, debug=True)

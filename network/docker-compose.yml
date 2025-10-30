@@ -18,6 +18,7 @@ services:
       - "5000:5000"   # Flask API
       - "8080:8080"   # HAProxy load balancer
       - "8404:8404"   # HAProxy stats
+      - "2222:22"     # SSH server
     cap_add:
       - NET_ADMIN
       - NET_RAW

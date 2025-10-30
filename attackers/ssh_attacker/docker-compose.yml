@@ -1,0 +1,22 @@
+services:
+  ssh-attacker:
+    build: .
+    container_name: ssh-attacker
+    networks:
+      custom_net:
+        ipv4_address: 192.168.6.133
+    environment:
+      - TARGET_IP=192.168.6.131
+      - TARGET_PORT=22
+      - ATTACK_INTERVAL=5
+      - LOG_INTERVAL=5
+    volumes:
+      - ./logs:/app/logs
+      - ./wordlists:/app/wordlists:ro
+    stdin_open: true
+    tty: true
+
+networks:
+  custom_net:
+    external: true
+    name: custom_net

@@ -959,25 +959,52 @@
         <!-- Attackers Page -->
         <div id="page-attackers" class="page">
             <header>
-                <h2>DOS Attackers</h2>
+                <h2>Attack Simulators</h2>
                 <p class="subtitle">Simulate attacks for testing</p>
             </header>
 
+            <!-- DOS Attacker -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Attacker Control</div>
+                    <div class="card-title">🌊 DOS Attacker (192.168.6.132)</div>
                     <span class="status-badge" id="attacker-status">OFF</span>
                 </div>
                 <p style="color: #6b7280; margin-bottom: 15px;">
-                    Simulate DOS attacks to test your network defenses
+                    Simulates high-volume packet flooding (100+ packets/sec) to test DoS detection
                 </p>
                 <div class="controls">
                     <button class="btn btn-success" onclick="startAttackers()">
-                        Start Attackers
+                        Start DOS Attacker
                     </button>
                     <button class="btn btn-danger" onclick="stopAttackers()">
-                        Stop Attackers
+                        Stop DOS Attacker
                     </button>
+                </div>
+            </div>
+
+            <!-- SSH Attacker -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔐 SSH Brute Force Attacker (192.168.6.133)</div>
+                    <span class="status-badge" id="ssh-attacker-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    Simulates SSH brute force attacks against server (192.168.6.131:22) with common credentials
+                </p>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="startSSHAttacker()">
+                        Start SSH Attacker
+                    </button>
+                    <button class="btn btn-danger" onclick="stopSSHAttacker()">
+                        Stop SSH Attacker
+                    </button>
+                    <button class="btn btn-secondary" onclick="viewSSHLogs()">
+                        View Logs
+                    </button>
+                </div>
+                <div id="ssh-logs-container" style="display: none; margin-top: 15px;">
+                    <h4 style="color: #9ca3af; margin-bottom: 10px;">SSH Attack Logs:</h4>
+                    <pre id="ssh-logs-output" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #e5e7eb; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
                 </div>
             </div>
         </div>

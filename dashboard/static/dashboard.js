@@ -89,14 +89,28 @@ async function refreshStatus() {
             document.getElementById('stat-beelzebub').textContent = 'OFF';
         }
 
-        // Update attackers
+        // Update DOS attacker status
         const attackerStatus = document.getElementById('attacker-status');
-        if (data.attackers.running) {
-            attackerStatus.textContent = 'ACTIVE';
-            attackerStatus.className = 'status-badge status-on';
-        } else {
-            attackerStatus.textContent = 'OFF';
-            attackerStatus.className = 'status-badge status-off';
+        if (attackerStatus) {
+            if (data.attackers.dos_running) {
+                attackerStatus.textContent = 'ON';
+                attackerStatus.className = 'status-badge status-on';
+            } else {
+                attackerStatus.textContent = 'OFF';
+                attackerStatus.className = 'status-badge status-off';
+            }
+        }
+
+        // Update SSH attacker status
+        const sshAttackerStatus = document.getElementById('ssh-attacker-status');
+        if (sshAttackerStatus) {
+            if (data.attackers.ssh_running) {
+                sshAttackerStatus.textContent = 'ON';
+                sshAttackerStatus.className = 'status-badge status-on';
+            } else {
+                sshAttackerStatus.textContent = 'OFF';
+                sshAttackerStatus.className = 'status-badge status-off';
+            }
         }
 
         // Update container count
@@ -971,6 +985,57 @@ async function stopAttackers() {
         setTimeout(refreshStatus, 2000);
     } catch (error) {
         showToast('Error stopping attackers', 'error');
+    }
+}
+
+// SSH Attacker control
+async function startSSHAttacker() {
+    showToast('Starting SSH brute force attacker...', 'success');
+    try {
+        const response = await fetch('/api/ssh_attacker/start', { method: 'POST' });
+        const data = await response.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        setTimeout(refreshStatus, 2000);
+    } catch (error) {
+        showToast('Error starting SSH attacker', 'error');
+    }
+}
+
+async function stopSSHAttacker() {
+    showToast('Stopping SSH attacker and cleaning iptables...', 'success');
+    try {
+        const response = await fetch('/api/ssh_attacker/stop', { method: 'POST' });
+        const data = await response.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        setTimeout(refreshStatus, 2000);
+    } catch (error) {
+        showToast('Error stopping SSH attacker', 'error');
+    }
+}
+
+async function viewSSHLogs() {
+    const logsContainer = document.getElementById('ssh-logs-container');
+    const logsOutput = document.getElementById('ssh-logs-output');
+    
+    if (logsContainer.style.display === 'none') {
+        showToast('Loading SSH logs...', 'info');
+        try {
+            const response = await fetch('/api/ssh_attacker/logs');
+            const data = await response.json();
+            
+            if (data.success) {
+                logsOutput.textContent = 
+                    '=== Container Logs ===\n\n' + data.container_logs + 
+                    '\n\n=== Summary Log ===\n\n' + data.summary_logs;
+                logsContainer.style.display = 'block';
+            } else {
+                showToast('Failed to load logs', 'error');
+            }
+        } catch (error) {
+            showToast('Error loading SSH logs', 'error');
+        }
+    } else {
+        logsContainer.style.display = 'none';
     }
 }
 

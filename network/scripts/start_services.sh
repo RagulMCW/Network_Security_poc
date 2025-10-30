@@ -5,6 +5,21 @@ echo "========================================"
 echo "Starting Network Security Monitor"
 echo "========================================"
 
+# Start SSH server
+echo "Starting SSH server..."
+service ssh start
+SSH_STATUS=$?
+if [ $SSH_STATUS -eq 0 ]; then
+    echo "SSH server started successfully on port 22"
+    echo "Test users created: admin, test, user, root"
+else
+    echo "WARNING: SSH server failed to start"
+fi
+
+# Create SSH log directory
+mkdir -p /var/log/ssh_attempts
+chmod 755 /var/log/ssh_attempts
+
 # Capture configuration
 CAP_DIR="/captures"
 IFACE="${CAPTURE_IFACE:-eth0}"
@@ -68,9 +83,18 @@ echo "Flask started (PID: ${FLASK_PID})"
 
 echo "========================================"
 echo "All services running!"
+echo "   SSH Server: port 22 (exposed as 2222 on host)"
 echo "   Web interface: http://localhost:8080"
 echo "   Direct Flask: http://localhost:5000"
 echo "   Packet captures: ${CAP_DIR}"
+echo "   SSH Logs: /var/log/auth.log"
+echo "========================================"
+echo ""
+echo "SSH Test Accounts:"
+echo "   root:rootpassword"
+echo "   admin:admin123"
+echo "   test:test123"
+echo "   user:password"
 echo "========================================"
 
 # Graceful shutdown handler

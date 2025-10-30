@@ -1,7 +1,0 @@
-Analyzing latest capture...
-File: capture_20251027_100035.pcap
-Error analyzing capture file: 'EDecimal' object cannot be interpreted as an integer
-
----
-WARNING: No libpcap provider available ! pcap won't be used
-WARNING: No libpcap provider available ! pcap won't be used

@@ -1,0 +1,3 @@
+# This directory stores packet capture files from the honeypot
+# PCAP files are gitignored to save space
+# Keep this directory structure intact
