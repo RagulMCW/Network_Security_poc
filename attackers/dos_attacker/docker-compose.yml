@@ -12,6 +12,8 @@ services:
       - PACKET_RATE=100
     cap_add:
       - NET_RAW
+    volumes:
+      - ./cleanup_iptables.sh:/cleanup_iptables.sh:ro
     # Optional: uncomment to keep container running
     # stdin_open: true
     # tty: true

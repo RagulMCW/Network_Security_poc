@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  network-monitor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: network-monitor
+    hostname: network-monitor
+    restart: unless-stopped
+    networks:
+      custom_net:
+        ipv4_address: 192.168.6.131
+    volumes:
+      - ./captures:/captures
+      - ./src:/app/src
+    ports:
+      - "5000:5000"   # Flask API
+      - "8080:8080"   # HAProxy load balancer
+      - "8404:8404"   # HAProxy stats
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: true
+    environment:
+      - CAPTURE_IFACE=eth0
+      - PYTHONUNBUFFERED=1
+    command: /app/scripts/start_services.sh
+
+networks:
+  custom_net:
+    external: true

@@ -196,7 +196,7 @@ def get_status():
                 'networks': list(networks.keys())
             }
 
-            if 'honeypot_net' in networks:
+            if 'honeypot_net' in networks or any('honeypot' in net for net in networks.keys()):
                 honeypot_devices.append(entry)
             elif 'custom_net' in networks or (ip_address and ip_address.startswith('192.168.6.')):
                 production_devices.append(entry)
@@ -208,8 +208,8 @@ def get_status():
         production_devices = []
         honeypot_devices = []
     
-    # Check honeypot
-    honeypot_running = any('honeypot' in c['name'] for c in containers)
+    # Check Beelzebub
+    beelzebub_running = any('beelzebub' in c['name'].lower() for c in containers)
     
     # Check attackers
     attacker_running = any('attacker' in c['name'] for c in containers)
@@ -227,9 +227,9 @@ def get_status():
             'containers': device_containers
         },
         'production_devices': production_devices,
-        'honeypot': {
-            'running': honeypot_running,
-            'containers': [c for c in containers if 'honeypot' in c['name']],
+        'beelzebub': {
+            'running': beelzebub_running,
+            'containers': [c for c in containers if 'beelzebub' in c['name'].lower()],
             'devices': honeypot_devices
         },
         'attackers': {
@@ -347,7 +347,7 @@ def create_device():
         })
     
     # Run device container
-    run_cmd = f'docker run -d --name {device_name} --network custom_net -e DEVICE_ID={device_id} -e DEVICE_TYPE={device_type} -e SERVER_URL=http://192.168.6.1:5000 -e REQUEST_INTERVAL=10 device-simulator'
+    run_cmd = f'docker run -d --name {device_name} --network custom_net -e DEVICE_ID={device_id} -e DEVICE_TYPE={device_type} -e SERVER_URL=http://192.168.6.131:5000 -e REQUEST_INTERVAL=10 device-simulator'
     
     print(f"Running device container: {run_cmd}")
     run_result = run_wsl_command(run_cmd)
@@ -469,9 +469,9 @@ def cleanup_all():
         'details': results
     })
 
-@app.route('/api/honeypot/start', methods=['POST'])
-def start_honeypot():
-    """Start Beelzebub honeypot system"""
+@app.route('/api/beelzebub/start', methods=['POST'])
+def start_beelzebub():
+    """Start Beelzebub honeypot"""
     
     # Ensure honeypot_net exists
     honeypot_check = run_wsl_command('docker network ls | grep honeypot_net')
@@ -488,24 +488,24 @@ def start_honeypot():
     
     return jsonify({
         'success': result['success'],
-        'message': 'Beelzebub honeypot started successfully (GLM-4.5 AI enabled)' if result['success'] else result['error'],
+        'message': 'Beelzebub started successfully' if result['success'] else result['error'],
         'output': result['output']
     })
 
-@app.route('/api/honeypot/stop', methods=['POST'])
-def stop_honeypot():
-    """Stop Beelzebub honeypot system"""
+@app.route('/api/beelzebub/stop', methods=['POST'])
+def stop_beelzebub():
+    """Stop Beelzebub honeypot"""
     
     result = run_wsl_command(f'cd {WSL_HONEYPOT_DIR} && docker compose -f docker-compose-simple.yml down')
     
     return jsonify({
         'success': result['success'],
-        'message': 'Beelzebub honeypot stopped successfully' if result['success'] else result['error']
+        'message': 'Beelzebub stopped successfully' if result['success'] else result['error']
     })
 
-@app.route('/api/honeypot/logs')
-def get_honeypot_logs():
-    """Get Beelzebub honeypot logs"""
+@app.route('/api/beelzebub/logs')
+def get_beelzebub_logs():
+    """Get Beelzebub logs"""
     
     # Beelzebub creates multiple log files
     log_files = {
@@ -528,7 +528,7 @@ def get_honeypot_logs():
             'success': True,
             'logs': [],
             'count': 0,
-            'message': 'No logs available yet. Start the honeypot and wait for attacks.'
+            'message': 'No logs available yet. Start Beelzebub and wait for attacks.'
         })
     
     logs = []
@@ -570,9 +570,9 @@ def get_honeypot_logs():
             'message': f'Error reading logs: {str(e)}'
         })
 
-@app.route('/api/honeypot/stats')
-def get_honeypot_stats():
-    """Get Beelzebub honeypot statistics"""
+@app.route('/api/beelzebub/stats')
+def get_beelzebub_stats():
+    """Get Beelzebub statistics"""
     
     # Check if Beelzebub containers are running
     check_result = run_wsl_command('docker ps --filter "name=beelzebub" --format "{{.Names}},{{.Status}}"')
@@ -587,7 +587,7 @@ def get_honeypot_stats():
                 container_name = line.split(',')[0]
                 services_active.append(container_name)
     
-    # Count log entries if honeypot is/was running
+    # Count log entries if Beelzebub is/was running
     logs_dir = os.path.join(HONEYPOT_DIR, 'logs')
     total_interactions = 0
     
@@ -616,7 +616,7 @@ def get_honeypot_stats():
         }
     })
 
-@app.route('/api/honeypot/attackers')
+@app.route('/api/beelzebub/attackers')
 def get_honeypot_attackers():
     """Get detailed attacker information from honeypot logs"""
     
@@ -851,9 +851,9 @@ def get_honeypot_attackers():
             'rerouted_devices': []
         })
 
-@app.route('/api/honeypot/reroute', methods=['POST'])
-def reroute_to_honeypot():
-    """Reroute device/attacker IP to honeypot network"""
+@app.route('/api/beelzebub/reroute', methods=['POST'])
+def reroute_to_beelzebub():
+    """Reroute device/attacker IP to Beelzebub honeypot network"""
     
     data = request.json
     ip_address = data.get('ip_address', '').strip()
@@ -874,9 +874,13 @@ def reroute_to_honeypot():
         })
     
     honeypot_network = 'honeypot_net'
-    honeypot_ip = '192.168.7.100'  # Beelzebub honeypot IP
     
-    print(f"🔄 Rerouting {ip_address} to honeypot network")
+    # Get Beelzebub honeypot IP dynamically
+    get_beelzebub_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
+    beelzebub_result = run_wsl_command(get_beelzebub_cmd)
+    honeypot_ip = beelzebub_result['output'].strip() if (beelzebub_result['success'] and beelzebub_result['output'].strip()) else '192.168.7.3'
+    
+    print(f"Rerouting {ip_address} to Beelzebub honeypot ({honeypot_ip})")
     
     # Find container with this IP address - first try custom_net
     find_simple_cmd = f'docker ps --format "{{{{.Names}}}}" --filter "network=custom_net"'
@@ -884,7 +888,7 @@ def reroute_to_honeypot():
     simple_result = run_wsl_command(find_simple_cmd)
     container_candidates = simple_result['output'].strip().split('\n') if simple_result['success'] else []
     
-    print(f"🔍 Found {len(container_candidates)} containers on custom_net: {container_candidates}")
+    print(f"Found {len(container_candidates)} containers on custom_net: {container_candidates}")
     
     # For each candidate, check if it has the target IP
     container_name = ''
@@ -965,35 +969,89 @@ def reroute_to_honeypot():
                 'message': f'Failed to create {honeypot_network}'
             })
     
-    # Step 2: Disconnect from custom_net
-    disconnect_cmd = f'docker network disconnect custom_net {container_name}'
-    disconnect_result = run_wsl_command(disconnect_cmd)
+    # Step 2: Check if already on honeypot_net
+    check_on_honeypot = run_wsl_command(
+        f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
+    )
+    already_on_honeypot = check_on_honeypot['success'] and check_on_honeypot['output'].strip()
     
-    if not disconnect_result['success']:
-        print(f"⚠️ Disconnect warning: {disconnect_result['output']}")
-    
-    # Step 3: Connect to honeypot_net
-    connect_cmd = f'docker network connect {honeypot_network} {container_name}'
-    connect_result = run_wsl_command(connect_cmd)
-    
-    if not connect_result['success']:
-        # Rollback: reconnect to custom_net
-        reconnect_cmd = f'docker network connect custom_net {container_name}'
-        run_wsl_command(reconnect_cmd)
+    # Step 3: Connect to honeypot_net (DUAL-HOMED: keep custom_net connection)
+    if not already_on_honeypot:
+        print(f"Connecting {container_name} to {honeypot_network}...")
+        connect_cmd = f'docker network connect {honeypot_network} {container_name}'
+        connect_result = run_wsl_command(connect_cmd)
         
-        return jsonify({
-            'success': False,
-            'message': f'Failed to connect {container_name} to honeypot network',
-            'error': connect_result['output']
-        })
+        print(f"Connect result: success={connect_result['success']}, output='{connect_result['output']}'")
+        
+        if not connect_result['success']:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to connect {container_name} to honeypot network',
+                'error': connect_result['output']
+            })
+        
+        print(f"✅ Successfully connected {container_name} to {honeypot_network}")
+    else:
+        print(f"Container {container_name} already on {honeypot_network}")
     
-    # Step 4: Get new IP on honeypot_net
-    get_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
-    ip_result = run_wsl_command(get_ip_cmd)
-    new_ip = ip_result['output'].strip() if ip_result['success'] else 'unknown'
+    # Verify connection was successful
+    verify_cmd = f'docker inspect {container_name} --format "{{{{json .NetworkSettings.Networks}}}}"'
+    verify_result = run_wsl_command(verify_cmd)
     
-    # Step 5: Log the reroute (with rotation - keep last 100 entries)
-    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Rerouted {container_name} ({ip_address}) to {honeypot_network} ({new_ip})"
+    if verify_result['success']:
+        import json as json_lib
+        try:
+            networks = json_lib.loads(verify_result['output'].strip())
+            connected_networks = list(networks.keys())
+            print(f"Container networks after connection: {connected_networks}")
+            
+            if honeypot_network not in connected_networks:
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to verify connection to {honeypot_network}. Current networks: {connected_networks}',
+                    'error': 'Connection verification failed'
+                })
+        except Exception as e:
+            print(f"Warning: Could not parse network verification: {e}")
+    
+    # Step 4: Get honeypot IP
+    get_honeypot_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
+    honeypot_ip_result = run_wsl_command(get_honeypot_ip_cmd)
+    device_honeypot_ip = honeypot_ip_result['output'].strip() if honeypot_ip_result['success'] else 'unknown'
+    
+    # Step 5: Get Beelzebub honeypot IP (dynamically)
+    get_beelzebub_ip_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null || echo "192.168.7.3"'
+    beelzebub_ip_result = run_wsl_command(get_beelzebub_ip_cmd)
+    honeypot_target_ip = beelzebub_ip_result['output'].strip() if beelzebub_ip_result['success'] and beelzebub_ip_result['output'].strip() else '192.168.7.3'
+    
+    print(f"Beelzebub honeypot IP: {honeypot_target_ip}")
+    
+    # Step 6: Setup iptables rules to redirect ALL traffic to honeypot
+    # This ensures device traffic goes to honeypot while still being visible on custom_net
+    
+    # Redirect all outbound traffic from this device to honeypot
+    iptables_rules = [
+        # NAT all TCP traffic from device to honeypot
+        f'iptables -t nat -A PREROUTING -s {ip_address} -p tcp -j DNAT --to-destination {honeypot_target_ip}',
+        # NAT all UDP traffic from device to honeypot  
+        f'iptables -t nat -A PREROUTING -s {ip_address} -p udp -j DNAT --to-destination {honeypot_target_ip}',
+        # Mark packets from this device for special routing
+        f'iptables -t mangle -A PREROUTING -s {ip_address} -j MARK --set-mark 100',
+    ]
+    
+    # Apply iptables rules on host
+    for rule in iptables_rules:
+        rule_result = run_wsl_command(f'sudo {rule}')
+        if not rule_result['success']:
+            print(f"Warning: iptables rule failed: {rule}")
+            print(f"  Error: {rule_result['output']}")
+    
+    print(f"✅ Applied traffic redirection rules for {ip_address} → {honeypot_target_ip}")
+    
+    print(f"✅ Applied traffic redirection rules for {ip_address} → {honeypot_target_ip}")
+    
+    # Step 6: Log the reroute (with rotation - keep last 100 entries)
+    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Rerouted {container_name} ({ip_address}) → Honeypot ({honeypot_target_ip}) | Device Honeypot IP: {device_honeypot_ip}"
     
     try:
         os.makedirs(os.path.join(HONEYPOT_DIR, 'logs'), exist_ok=True)
@@ -1019,22 +1077,23 @@ def reroute_to_honeypot():
     except Exception as e:
         print(f"Warning: Could not write to reroutes log: {e}")
     
-    print(f"✅ Successfully rerouted {container_name}: {ip_address} → {new_ip}")
+    print(f"✅ Successfully rerouted {container_name}: Traffic redirected to honeypot via iptables")
     
     return jsonify({
         'success': True,
-        'message': f'Successfully rerouted {container_name} to honeypot network. All traffic now goes to honeypot!',
+        'message': f'Successfully rerouted {container_name} to honeypot! Traffic now redirected via iptables to {honeypot_target_ip}',
         'container_name': container_name,
-        'old_ip': ip_address,
-        'new_ip': new_ip,
+        'original_ip': ip_address,
+        'honeypot_ip': device_honeypot_ip,
+        'honeypot_target': honeypot_target_ip,
         'honeypot_network': honeypot_network,
-        'honeypot_ip': honeypot_ip,
+        'method': 'iptables_redirect',
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/honeypot/reroutes')
+@app.route('/api/beelzebub/reroutes')
 def get_reroutes():
-    """Get list of rerouted IPs"""
+    """Get list of rerouted IPs to Beelzebub"""
     
     honeypot_network = 'honeypot_net'
     
@@ -1075,8 +1134,57 @@ def get_reroutes():
                     active_reroutes.append({
                         'container': container_name,
                         'ip': ip_result['output'].strip(),
-                        'network': honeypot_network
+                        'network': honeypot_network,
+                        'method': 'network_move'
                     })
+    
+    # Also check for iptables-redirected devices (still on custom_net but traffic redirected)
+    iptables_check_cmd = 'sudo iptables -t nat -L PREROUTING -n -v 2>/dev/null | grep "DNAT" | grep "192.168.7"'
+    iptables_result = run_wsl_command(iptables_check_cmd)
+    
+    if iptables_result['success'] and iptables_result['output'].strip():
+        for line in iptables_result['output'].strip().split('\n'):
+            # Parse iptables output line format:
+            # pkts bytes target prot opt in out source destination to
+            # Example: 3406 136K DNAT tcp -- * * 192.168.6.132 0.0.0.0/0 to:192.168.7.2
+            parts = line.split()
+            
+            # Find source IP (position varies, look for 192.168.6.x)
+            source_ip = None
+            dest_ip = None
+            
+            for i, part in enumerate(parts):
+                if part.startswith('192.168.6.'):
+                    source_ip = part
+                if part.startswith('to:192.168.7.'):
+                    dest_ip = part.replace('to:', '')
+            
+            if source_ip:
+                # Get all container IPs and names on custom_net
+                get_containers_cmd = 'docker ps --format "{{.Names}}" --filter "network=custom_net"'
+                containers_result = run_wsl_command(get_containers_cmd)
+                
+                if containers_result['success'] and containers_result['output'].strip():
+                    for container in containers_result['output'].strip().split('\n'):
+                        container = container.strip()
+                        if not container:
+                            continue
+                        
+                        # Get container IP on custom_net
+                        ip_check_cmd = f'docker inspect {container} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}" 2>/dev/null'
+                        ip_check = run_wsl_command(ip_check_cmd)
+                        
+                        if ip_check['success'] and ip_check['output'].strip() == source_ip:
+                            # Check if not already in active_reroutes
+                            if not any(r['container'] == container for r in active_reroutes):
+                                active_reroutes.append({
+                                    'container': container,
+                                    'ip': source_ip,
+                                    'network': f'custom_net → {dest_ip} (iptables)',
+                                    'method': 'iptables_dnat',
+                                    'redirect_to': dest_ip
+                                })
+                            break
     
     return jsonify({
         'success': True,
@@ -1085,9 +1193,9 @@ def get_reroutes():
         'count': len(reroutes)
     })
 
-@app.route('/api/honeypot/remove_reroute', methods=['POST'])
+@app.route('/api/beelzebub/remove_reroute', methods=['POST'])
 def remove_reroute():
-    """Remove reroute rule for specific IP - move container back to custom_net"""
+    """Remove reroute rule for specific IP - restore container to production network"""
     
     honeypot_network = 'honeypot_net'
     
@@ -1100,30 +1208,62 @@ def remove_reroute():
             'message': 'Container name is required'
         })
     
-    print(f"🔄 Moving {container_name} back to custom_net")
+    print(f"🔄 Restoring {container_name} back to production network")
     
-    # Disconnect from honeypot_net
+    # Step 1: Get container's IP on custom_net (before removal)
+    get_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
+    ip_result = run_wsl_command(get_ip_cmd)
+    container_ip = ip_result['output'].strip() if ip_result['success'] else None
+    
+    # Get Beelzebub IP for rule removal
+    honeypot_network = 'honeypot_net'
+    get_beelzebub_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
+    beelzebub_result = run_wsl_command(get_beelzebub_cmd)
+    beelzebub_ip = beelzebub_result['output'].strip() if (beelzebub_result['success'] and beelzebub_result['output'].strip()) else '192.168.7.3'
+    
+    # Step 2: Remove iptables rules that were redirecting traffic
+    if container_ip:
+        print(f"Removing iptables rules for {container_ip}")
+        
+        # Check all possible honeypot destinations (192.168.7.2, 192.168.7.3, 192.168.7.100)
+        honeypot_destinations = ['192.168.7.2', '192.168.7.3', '192.168.7.100', beelzebub_ip]
+        
+        # Remove the DNAT and mangle rules for all possible destinations
+        for dest_ip in set(honeypot_destinations):  # Use set to avoid duplicates
+            iptables_remove_rules = [
+                f'iptables -t nat -D PREROUTING -s {container_ip} -p tcp -j DNAT --to-destination {dest_ip}',
+                f'iptables -t nat -D PREROUTING -s {container_ip} -p udp -j DNAT --to-destination {dest_ip}',
+            ]
+            
+            for rule in iptables_remove_rules:
+                rule_result = run_wsl_command(f'sudo {rule} 2>&1')
+                # Ignore errors (rule might not exist)
+        
+        # Remove mangle rule
+        mangle_rule = f'sudo iptables -t mangle -D PREROUTING -s {container_ip} -j MARK --set-mark 100 2>&1'
+        run_wsl_command(mangle_rule)
+        
+        print(f"Removed all traffic redirection rules for {container_ip}")
+    
+    # Step 3: Disconnect from honeypot_net (but keep custom_net connection)
     disconnect_cmd = f'docker network disconnect {honeypot_network} {container_name}'
     disconnect_result = run_wsl_command(disconnect_cmd)
     
-    # Reconnect to custom_net
-    connect_cmd = f'docker network connect custom_net {container_name}'
-    connect_result = run_wsl_command(connect_cmd)
+    if not disconnect_result['success']:
+        print(f"Warning: Could not disconnect from honeypot network: {disconnect_result['output']}")
     
-    if not connect_result['success']:
-        return jsonify({
-            'success': False,
-            'message': f'Failed to restore {container_name} to custom_net',
-            'error': connect_result['error']
-        })
+    # Step 4: Get current IP on custom_net (should be same as before)
+    get_final_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
+    final_ip_result = run_wsl_command(get_final_ip_cmd)
+    final_ip = final_ip_result['output'].strip() if final_ip_result['success'] else 'unknown'
     
-    # Get new IP
-    get_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
-    ip_result = run_wsl_command(get_ip_cmd)
-    new_ip = ip_result['output'].strip() if ip_result['success'] else 'unknown'
+    # Step 4: Get current IP on custom_net (should be same as before)
+    get_final_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
+    final_ip_result = run_wsl_command(get_final_ip_cmd)
+    final_ip = final_ip_result['output'].strip() if final_ip_result['success'] else 'unknown'
     
-    # Log the restore (with rotation - keep last 100 entries)
-    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Restored {container_name} to custom_net ({new_ip})"
+    # Step 5: Log the restore (with rotation - keep last 100 entries)
+    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Restored {container_name} ({final_ip}) to production network - removed traffic redirection"
     try:
         log_file = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
         
@@ -1147,12 +1287,13 @@ def remove_reroute():
     except:
         pass
     
-    print(f"✅ Container {container_name} restored to custom_net (IP: {new_ip})")
+    print(f"✅ Container {container_name} restored to production network (IP: {final_ip})")
     
     return jsonify({
         'success': True,
-        'message': f'{container_name} restored to custom_net',
-        'new_ip': new_ip
+        'message': f'{container_name} restored to production network. Traffic redirection removed.',
+        'ip': final_ip,
+        'method': 'iptables_removed'
     })
 
 @app.route('/api/analytics/attacks')
@@ -1356,11 +1497,15 @@ def start_attackers():
 def stop_attackers():
     """Stop DOS attacker containers"""
     
+    # First, clean up iptables rules for the attacker
+    cleanup_result = run_wsl_command('bash /mnt/e/nos/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.132')
+    
+    # Then stop the containers
     result = run_wsl_command(f'cd {WSL_ATTACKERS_DIR} && docker compose down')
     
     return jsonify({
         'success': result['success'],
-        'message': 'Attackers stopped successfully' if result['success'] else result['error']
+        'message': 'Attackers stopped and iptables cleaned up' if result['success'] else result['error']
     })
 
 # ===== Network Monitor Server Control =====
@@ -1574,8 +1719,8 @@ def get_network_map():
     # Get all containers on custom_net
     inspect_result = run_wsl_command('docker network inspect custom_net --format "{{json .Containers}}"')
     
-    # Get all containers on honeypot_net
-    honeypot_inspect = run_wsl_command('docker network inspect honeypot_net --format "{{json .Containers}}" 2>/dev/null || echo "{}"')
+    # Get all containers on honeypot_net (check both standalone and docker-compose network names)
+    honeypot_inspect = run_wsl_command('docker network inspect honey_pot_honeypot_net --format "{{json .Containers}}" 2>/dev/null || docker network inspect honeypot_net --format "{{json .Containers}}" 2>/dev/null || echo "{}"')
     
     nodes = []
     connections = []
@@ -1678,30 +1823,7 @@ def get_network_map():
         try:
             honeypot_containers = json.loads(honeypot_inspect['output'].strip())
             
-            # Add honeypot network gateway node
-            honeypot_gateway_exists = False
-            for node in nodes:
-                if node['id'] == 'honeypot_gateway':
-                    honeypot_gateway_exists = True
-                    break
-            
-            if not honeypot_gateway_exists:
-                nodes.append({
-                    'id': 'honeypot_gateway',
-                    'name': 'Honeypot Network',
-                    'type': 'honeypot_network',
-                    'ip': '192.168.7.1',
-                    'status': 'running'
-                })
-                
-                # Connect honeypot network to main gateway
-                connections.append({
-                    'from': 'gateway',
-                    'to': 'honeypot_gateway',
-                    'type': 'network_bridge'
-                })
-            
-            # Add containers on honeypot network
+            # Add containers on honeypot network (no separate gateway node)
             for container_id, info in honeypot_containers.items():
                 container_name = info.get('Name', 'unknown')
                 container_ip = info.get('IPv4Address', '').split('/')[0]
@@ -1742,26 +1864,15 @@ def get_network_map():
                         'on_honeypot_network': True
                     })
                 
-                # Create connection to honeypot gateway
+                # Connection added directly to main gateway
                 connections.append({
-                    'from': 'honeypot_gateway',
+                    'from': 'gateway',
                     'to': container_name,
                     'type': 'honeypot_network'
                 })
         
         except json.JSONDecodeError as e:
             print(f"Error parsing honeypot network: {e}")
-            
-            # Add honeypot network gateway node
-            honeypot_gateway_exists = any(node['id'] == 'honeypot_gateway' for node in nodes)
-            if not honeypot_gateway_exists and len(honeypot_containers) > 0:
-                nodes.append({
-                    'id': 'honeypot_gateway',
-                    'name': 'Honeypot Network',
-                    'type': 'honeypot_network',
-                    'ip': '192.168.7.1',
-                    'status': 'running'
-                })
             
             for container_id, info in honeypot_containers.items():
                 container_name = info.get('Name', 'unknown')
@@ -1774,9 +1885,9 @@ def get_network_map():
                     # Update to show dual-network status
                     existing_node['honeypot_ip'] = container_ip
                     existing_node['dual_network'] = True
-                    # Add connection to honeypot gateway
+                    # Add connection directly to main gateway
                     connections.append({
-                        'from': 'honeypot_gateway',
+                        'from': 'gateway',
                         'to': container_name,
                         'type': 'honeypot_network'
                     })
@@ -1799,9 +1910,9 @@ def get_network_map():
                         'network': 'honeypot_net'
                     })
                     
-                    # Connect to honeypot gateway
+                    # Connect directly to main gateway
                     connections.append({
-                        'from': 'honeypot_gateway',
+                        'from': 'gateway',
                         'to': container_name,
                         'type': 'honeypot_network'
                     })
@@ -1953,8 +2064,8 @@ def test_anthropic_key():
     })
 
 @app.route('/api/agent/reroute', methods=['POST'])
-def agent_reroute_to_honeypot():
-    """Reroute device to honeypot via agent tool"""
+def agent_reroute_to_beelzebub():
+    """Reroute device to Beelzebub honeypot via agent tool"""
     data = request.get_json()
     device_ip = data.get('device_ip', '').strip()
     

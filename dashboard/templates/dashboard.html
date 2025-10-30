@@ -299,7 +299,7 @@
 
     <div class="container">
         <header>
-            <h1>🛡️ Network Security Control Panel</h1>
+            <h1>Network Security Control Panel</h1>
             <p class="subtitle">Manage your entire Docker network security setup</p>
         </header>
 
@@ -328,7 +328,7 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        🌐 Network Control
+                        Network Control
                     </div>
                     <span class="status-badge" id="network-status">OFF</span>
                 </div>
@@ -337,10 +337,10 @@
                 </p>
                 <div class="controls">
                     <button class="btn btn-success" onclick="createNetwork()">
-                        ▶️ Create Network
+                        Create Network
                     </button>
                     <button class="btn btn-danger" onclick="deleteNetwork()">
-                        ⏹️ Delete Network
+                        Delete Network
                     </button>
                 </div>
             </div>
@@ -349,7 +349,7 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        📱 Device Management
+                        Device Management
                     </div>
                     <span class="status-badge status-off" id="device-count">0 Devices</span>
                 </div>
@@ -360,15 +360,15 @@
                         <option value="actuator">Actuator Device</option>
                     </select>
                     <button class="btn btn-success" onclick="createDevice()">
-                        ➕ Add Device
+                        Add Device
                     </button>
                 </div>
                 <div class="controls">
                     <button class="btn btn-warning" onclick="refreshDevices()">
-                        🔄 Refresh
+                        Refresh
                     </button>
                     <button class="btn btn-secondary" onclick="cleanupDevices()">
-                        🧹 Cleanup
+                        Cleanup
                     </button>
                 </div>
                 <div class="device-list" id="device-list">
@@ -378,26 +378,26 @@
                 </div>
             </div>
 
-            <!-- Honeypot Control -->
+            <!-- Beelzebub Control -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        🍯 Honeypot System
+                        Beelzebub Honeypot
                     </div>
-                    <span class="status-badge" id="honeypot-status">OFF</span>
+                    <span class="status-badge" id="beelzebub-status">OFF</span>
                 </div>
                 <p style="color: #6b7280; margin-bottom: 15px;">
                     IP: <strong>192.168.6.200</strong> | Dashboard: <a href="http://localhost:5001" target="_blank">localhost:5001</a>
                 </p>
                 <div class="controls">
-                    <button class="btn btn-success" onclick="startHoneypot()">
-                        ▶️ Start Honeypot
+                    <button class="btn btn-success" onclick="startBeelzebub()">
+                        Start Beelzebub
                     </button>
-                    <button class="btn btn-danger" onclick="stopHoneypot()">
-                        ⏹️ Stop Honeypot
+                    <button class="btn btn-danger" onclick="stopBeelzebub()">
+                        Stop Beelzebub
                     </button>
-                    <button class="btn btn-warning" onclick="viewHoneypotLogs()">
-                        📋 View Logs
+                    <button class="btn btn-warning" onclick="viewBeelzebubLogs()">
+                        View Logs
                     </button>
                 </div>
             </div>
@@ -406,7 +406,7 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        💀 DOS Attackers
+                        DOS Attackers
                     </div>
                     <span class="status-badge" id="attacker-status">OFF</span>
                 </div>
@@ -415,10 +415,10 @@
                 </p>
                 <div class="controls">
                     <button class="btn btn-success" onclick="startAttackers()">
-                        ▶️ Start Attackers
+                        Start Attackers
                     </button>
                     <button class="btn btn-danger" onclick="stopAttackers()">
-                        ⏹️ Stop Attackers
+                        Stop Attackers
                     </button>
                 </div>
             </div>
@@ -428,10 +428,10 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">
-                    📊 Live System Logs
+                    Live System Logs
                 </div>
                 <button class="btn btn-primary" onclick="refreshLogs()">
-                    🔄 Refresh Logs
+                    Refresh Logs
                 </button>
             </div>
             <div class="logs-container" id="logs-display">
@@ -473,14 +473,14 @@
                 document.getElementById('device-count').textContent = `${data.devices.count} Devices`;
                 document.getElementById('stat-devices').textContent = data.devices.count;
 
-                // Update honeypot
-                const honeypotStatus = document.getElementById('honeypot-status');
-                if (data.honeypot.running) {
-                    honeypotStatus.textContent = 'RUNNING';
-                    honeypotStatus.className = 'status-badge status-on';
+                // Update Beelzebub
+                const beelzebubStatus = document.getElementById('beelzebub-status');
+                if (data.beelzebub.running) {
+                    beelzebubStatus.textContent = 'RUNNING';
+                    beelzebubStatus.className = 'status-badge status-on';
                 } else {
-                    honeypotStatus.textContent = 'OFF';
-                    honeypotStatus.className = 'status-badge status-off';
+                    beelzebubStatus.textContent = 'OFF';
+                    beelzebubStatus.className = 'status-badge status-off';
                 }
 
                 // Update attackers
@@ -544,11 +544,11 @@
                 deviceList.innerHTML = data.devices.map(device => `
                     <div class="device-item">
                         <div class="device-info">
-                            <span class="device-name">🖥️ ${device.name}</span>
-                            <span class="device-status">${device.running ? '✅ Running' : '⏸️ Stopped'}</span>
+                            <span class="device-name">${device.name}</span>
+                            <span class="device-status">${device.running ? 'Running' : 'Stopped'}</span>
                         </div>
                         <button class="btn btn-danger" onclick="deleteDevice('${device.id}')">
-                            🗑️ Delete
+                            Delete
                         </button>
                     </div>
                 `).join('');
@@ -603,34 +603,34 @@
             }
         }
 
-        // Honeypot control
-        async function startHoneypot() {
-            showToast('Starting honeypot...', 'success');
+        // Beelzebub control
+        async function startBeelzebub() {
+            showToast('Starting Beelzebub...', 'success');
             try {
-                const response = await fetch('/api/honeypot/start', { method: 'POST' });
+                const response = await fetch('/api/beelzebub/start', { method: 'POST' });
                 const data = await response.json();
                 showToast(data.message, data.success ? 'success' : 'error');
                 setTimeout(refreshStatus, 2000);
             } catch (error) {
-                showToast('Error starting honeypot', 'error');
+                showToast('Error starting Beelzebub', 'error');
             }
         }
 
-        async function stopHoneypot() {
-            showToast('Stopping honeypot...', 'success');
+        async function stopBeelzebub() {
+            showToast('Stopping Beelzebub...', 'success');
             try {
-                const response = await fetch('/api/honeypot/stop', { method: 'POST' });
+                const response = await fetch('/api/beelzebub/stop', { method: 'POST' });
                 const data = await response.json();
                 showToast(data.message, data.success ? 'success' : 'error');
                 setTimeout(refreshStatus, 2000);
             } catch (error) {
-                showToast('Error stopping honeypot', 'error');
+                showToast('Error stopping Beelzebub', 'error');
             }
         }
 
-        async function viewHoneypotLogs() {
+        async function viewBeelzebubLogs() {
             try {
-                const response = await fetch('/api/honeypot/logs');
+                const response = await fetch('/api/beelzebub/logs');
                 const data = await response.json();
                 
                 const logsDisplay = document.getElementById('logs-display');
@@ -681,7 +681,7 @@
 
         // Refresh logs
         async function refreshLogs() {
-            await viewHoneypotLogs();
+            await viewBeelzebubLogs();
         }
 
         // Auto-refresh every 5 seconds

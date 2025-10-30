@@ -1,6 +1,6 @@
 # Network Security POC
 
-A comprehensive network security monitoring and testing system built with Docker containers, featuring real-time packet capture, device simulation, attack testing, honeypot traps, and a **professional web dashboard** for complete system control.
+A comprehensive network security monitoring and testing system built with Docker containers, featuring real-time packet capture, device simulation, attack testing, Beelzebub honeypot, and a **professional web dashboard** for complete system control.
 
 **Version 2.0** | October 2025
 
@@ -51,7 +51,7 @@ The Network Security POC provides a complete environment for network security te
 - Capture and analyze all network traffic in real-time
 - Simulate legitimate devices generating network traffic
 - Launch controlled attacks to test security detection
-- Deploy honeypot traps to study attacker behavior
+- Deploy Beelzebub honeypot to capture and analyze attacker behavior
 - Automatically detect anomalies and security threats
 - Visualize network activity through dashboards
 
@@ -59,7 +59,7 @@ The Network Security POC provides a complete environment for network security te
 
 - **🎮 Web Dashboard**: Professional UI to control entire system
 - **📡 Device Management**: Create IoT sensors, cameras, laptops with one click
-- **🍯 Honeypot System**: AI-ready trap with real-time monitoring
+- **🍯 Beelzebub Honeypot**: Intelligent trap with real-time monitoring
 - **Real-time Packet Capture**: Continuous network traffic monitoring with tcpdump
 - **Device Simulation**: Create virtual devices that generate realistic network traffic
 - **Attack Simulation**: Test DoS, DDoS, and SYN flood detection capabilities
@@ -92,8 +92,8 @@ Open browser: **http://localhost:5000**
 - View device logs
 - Cleanup stopped containers
 
-#### 🍯 Honeypot
-- Start/stop honeypot system
+#### 🍯 Beelzebub
+- Start/stop Beelzebub honeypot
 - View live attack logs
 - See attacker IPs and protocols
 - Attack counter

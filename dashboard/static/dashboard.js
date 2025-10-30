@@ -39,8 +39,8 @@ function showPage(pageName) {
         refreshMonitorStatus();
     } else if (pageName === 'devices') {
         refreshDevices();
-    } else if (pageName === 'honeypot') {
-        refreshHoneypotStats();
+    } else if (pageName === 'beelzebub') {
+        refreshBeelzebubStats();
         refreshReroutes();  // Also refresh isolated devices list
     } else if (pageName === 'logs') {
         refreshDeviceData();
@@ -77,16 +77,16 @@ async function refreshStatus() {
         document.getElementById('stat-devices').textContent = data.devices.count;
         document.getElementById('device-count-badge').textContent = `${data.devices.count} Devices`;
 
-        // Update honeypot
-        const honeypotStatus = document.getElementById('honeypot-status');
-        if (data.honeypot.running) {
-            honeypotStatus.textContent = 'RUNNING';
-            honeypotStatus.className = 'status-badge status-on';
-            document.getElementById('stat-honeypot').textContent = 'ON';
+        // Update Beelzebub
+        const beelzebubStatus = document.getElementById('beelzebub-status');
+        if (data.beelzebub.running) {
+            beelzebubStatus.textContent = 'RUNNING';
+            beelzebubStatus.className = 'status-badge status-on';
+            document.getElementById('stat-beelzebub').textContent = 'ON';
         } else {
-            honeypotStatus.textContent = 'OFF';
-            honeypotStatus.className = 'status-badge status-off';
-            document.getElementById('stat-honeypot').textContent = 'OFF';
+            beelzebubStatus.textContent = 'OFF';
+            beelzebubStatus.className = 'status-badge status-off';
+            document.getElementById('stat-beelzebub').textContent = 'OFF';
         }
 
         // Update attackers
@@ -155,9 +155,9 @@ async function refreshDevices() {
 
         const container = document.getElementById('devices-container');
 
-        // Build professional production and honeypot sections
+        // Build professional production and Beelzebub sections
         const prod = data.production_devices || data.production_devices === undefined ? (data.production_devices || []) : [];
-        const honeypot = data.honeypot && data.honeypot.devices ? data.honeypot.devices : (data.honeypot_devices || []);
+        const beelzebub = data.beelzebub && data.beelzebub.devices ? data.beelzebub.devices : (data.honeypot_devices || []);
 
         let html = '';
         html += `<div class="grid">`;
@@ -165,7 +165,7 @@ async function refreshDevices() {
         // Production Network Column
         html += `<div class="card">
                     <div class="card-header">
-                        <div class="card-title">🌐 Production Network — custom_net (192.168.6.0/24)</div>
+                        <div class="card-title">Production Network — custom_net (192.168.6.0/24)</div>
                         <span class="status-badge">${prod.length} Nodes</span>
                     </div>
                     <div style="padding: 15px;">
@@ -190,32 +190,35 @@ async function refreshDevices() {
                             <div><strong>Image:</strong> ${escapeHtml(d.image || 'N/A')}</div>
                             <div><strong>Networks:</strong> ${escapeHtml((d.networks || []).join(', ') || 'N/A')}</div>
                         </div>
+                        <div class="device-actions">
+                            <button class="btn btn-danger btn-small" onclick="deleteDevice('${escapeHtml(name)}')">Delete</button>
+                        </div>
                     </div>`;
             });
         }
 
         html += `</div></div></div>`;
 
-        // Honeypot Column
+        // Beelzebub Column
         html += `<div class="card">
                     <div class="card-header">
-                        <div class="card-title">🍯 Honeypot Network — honeypot_net (192.168.7.0/24)</div>
-                        <span class="status-badge">${honeypot.length} Isolated</span>
+                        <div class="card-title">Beelzebub Network — honeypot_net (192.168.7.0/24)</div>
+                        <span class="status-badge">${beelzebub.length} Isolated</span>
                     </div>
                     <div style="padding: 15px;">
                         <div class="device-grid">`;
 
-        if (honeypot.length === 0) {
+        if (beelzebub.length === 0) {
             html += `<div style="color: #6b7280; padding: 20px;">No devices currently isolated</div>`;
         } else {
-            honeypot.forEach((d, idx) => {
+            beelzebub.forEach((d, idx) => {
                 const name = d.name || 'Isolated Device';
                 const ip = d.ip || 'N/A';
                 html += `
                     <div class="device-card" style="border-left: 4px solid #fb923c;">
                         <div class="device-header">
                             <div>
-                                <div class="device-name">⚠️ ${escapeHtml(name)}</div>
+                                <div class="device-name">${escapeHtml(name)}</div>
                                 <div class="device-type">Isolated</div>
                             </div>
                         </div>
@@ -225,7 +228,7 @@ async function refreshDevices() {
                             <div><strong>Image:</strong> ${escapeHtml(d.image || 'N/A')}</div>
                         </div>
                         <div class="device-actions">
-                            <button class="btn btn-success btn-small" onclick="restoreDevice('${escapeHtml(d.name)}')">✅ Restore to Network</button>
+                            <button class="btn btn-success btn-small" onclick="restoreDevice('${escapeHtml(d.name)}')">Restore to Network</button>
                         </div>
                     </div>`;
             });
@@ -294,7 +297,7 @@ async function restoreDevice(containerName) {
     if (!confirm(`Restore ${containerName} to production network?`)) return;
     showToast(`Restoring ${containerName}...`, 'success');
     try {
-        const response = await fetch('/api/honeypot/remove_reroute', {
+        const response = await fetch('/api/beelzebub/remove_reroute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ container_name: containerName })
@@ -374,37 +377,37 @@ async function refreshDeviceData() {
     }
 }
 
-// Honeypot control
-async function startHoneypot() {
-    showToast('Starting honeypot...', 'success');
+// Beelzebub control
+async function startBeelzebub() {
+    showToast('Starting Beelzebub...', 'success');
     try {
-        const response = await fetch('/api/honeypot/start', { method: 'POST' });
+        const response = await fetch('/api/beelzebub/start', { method: 'POST' });
         const data = await response.json();
         showToast(data.message, data.success ? 'success' : 'error');
         setTimeout(refreshStatus, 2000);
     } catch (error) {
-        showToast('Error starting honeypot', 'error');
+        showToast('Error starting Beelzebub', 'error');
     }
 }
 
-async function stopHoneypot() {
-    showToast('Stopping honeypot...', 'success');
+async function stopBeelzebub() {
+    showToast('Stopping Beelzebub...', 'success');
     try {
-        const response = await fetch('/api/honeypot/stop', { method: 'POST' });
+        const response = await fetch('/api/beelzebub/stop', { method: 'POST' });
         const data = await response.json();
         showToast(data.message, data.success ? 'success' : 'error');
         setTimeout(refreshStatus, 2000);
     } catch (error) {
-        showToast('Error stopping honeypot', 'error');
+        showToast('Error stopping Beelzebub', 'error');
     }
 }
 
-async function viewHoneypotLogs() {
+async function viewBeelzebubLogs() {
     try {
-        const response = await fetch('/api/honeypot/logs');
+        const response = await fetch('/api/beelzebub/logs');
         const data = await response.json();
         
-        const logsDisplay = document.getElementById('honeypot-logs');
+        const logsDisplay = document.getElementById('beelzebub-logs');
         
         if (!data.success) {
             logsDisplay.innerHTML = `<div class="log-entry" style="color: #f87171;">Error: ${data.message || data.error || 'Failed to load logs'}</div>`;
@@ -458,27 +461,27 @@ async function viewHoneypotLogs() {
         logsDisplay.scrollTop = logsDisplay.scrollHeight;
         
     } catch (error) {
-        const logsDisplay = document.getElementById('honeypot-logs');
+        const logsDisplay = document.getElementById('beelzebub-logs');
         logsDisplay.innerHTML = `<div class="log-entry" style="color: #f87171;">Error loading logs: ${error.message}</div>`;
-        console.error('Error loading honeypot logs:', error);
+        console.error('Error loading Beelzebub logs:', error);
     }
 }
 
-async function refreshHoneypotStats() {
+async function refreshBeelzebubStats() {
     try {
-        const response = await fetch('/api/honeypot/stats');
+        const response = await fetch('/api/beelzebub/stats');
         const data = await response.json();
         
         // Update interaction count
-        document.getElementById('honeypot-interactions').textContent = 
+        document.getElementById('beelzebub-interactions').textContent = 
             `${data.total_interactions} Interactions`;
         
         // Update services count
-        document.getElementById('honeypot-services-count').textContent = 
+        document.getElementById('beelzebub-services-count').textContent = 
             `${data.services.length} Active`;
         
         // Update status badge
-        const statusBadge = document.getElementById('honeypot-status');
+        const statusBadge = document.getElementById('beelzebub-status');
         if (data.running) {
             statusBadge.textContent = 'RUNNING';
             statusBadge.className = 'status-badge status-on';
@@ -488,20 +491,20 @@ async function refreshHoneypotStats() {
         }
         
         // Refresh logs
-        viewHoneypotLogs();
+        viewBeelzebubLogs();
         
         // Refresh attacker details
         refreshAttackerDetails();
         
     } catch (error) {
-        showToast('Error refreshing honeypot stats', 'error');
+        showToast('Error refreshing Beelzebub stats', 'error');
     }
 }
 
 // Attacker Details - Comprehensive Tracking
 async function refreshAttackerDetails() {
     try {
-        const response = await fetch('/api/honeypot/attackers');
+        const response = await fetch('/api/beelzebub/attackers');
         const data = await response.json();
         
         // Update stat counters
@@ -782,8 +785,8 @@ function displayHttpRequestsList(requests) {
     container.innerHTML = html;
 }
 
-// IP Rerouting to Honeypot
-async function rerouteIPToHoneypot() {
+// IP Rerouting to Beelzebub
+async function rerouteIPToBeelzebub() {
     const ipInput = document.getElementById('reroute-ip');
     const ipAddress = ipInput.value.trim();
     
@@ -799,14 +802,14 @@ async function rerouteIPToHoneypot() {
         return;
     }
     
-    if (!confirm(`Are you sure you want to reroute ${ipAddress} to the honeypot?\n\nAll traffic from this IP will be redirected to the isolated honeypot network.`)) {
+    if (!confirm(`Are you sure you want to reroute to Beelzebub?\n\nAll traffic from this IP will be redirected to the isolated honeypot network.`)) {
         return;
     }
     
     showToast(`Rerouting ${ipAddress} to honeypot...`, 'success');
     
     try {
-        const response = await fetch('/api/honeypot/reroute', {
+        const response = await fetch('/api/beelzebub/reroute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip_address: ipAddress })
@@ -815,7 +818,7 @@ async function rerouteIPToHoneypot() {
         const data = await response.json();
         
         if (data.success) {
-            showToast(`✅ ${ipAddress} successfully rerouted to honeypot!`, 'success');
+            showToast(`✅ ${ipAddress} successfully rerouted to Beelzebub!`, 'success');
             ipInput.value = '';  // Clear input
             
             // Refresh reroutes list
@@ -831,7 +834,7 @@ async function rerouteIPToHoneypot() {
 
 async function refreshReroutes() {
     try {
-        const response = await fetch('/api/honeypot/reroutes');
+        const response = await fetch('/api/beelzebub/reroutes');
         const data = await response.json();
         
         const listDiv = document.getElementById('rerouted-ips-list');
@@ -872,10 +875,12 @@ async function refreshReroutes() {
                                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; font-size: 0.9em; color: #4b5563; margin-left: 35px;">
                                     <span>📍 Original IP:</span>
                                     <strong>${reroute.ip}</strong>
-                                    <span>🍯 Current Network:</span>
-                                    <strong style="color: #fb923c;">${reroute.network} (honeypot_net)</strong>
+                                    <span>🍯 Current Status:</span>
+                                    <strong style="color: #fb923c;">${reroute.network}</strong>
+                                    <span>🔒 Isolation Method:</span>
+                                    <strong style="color: #8b5cf6;">${reroute.method === 'iptables_dnat' ? 'Iptables DNAT Redirect' : 'Network Move'}</strong>
                                     <span>⚠️ Status:</span>
-                                    <strong style="color: #ef4444;">Isolated - Cannot reach main network</strong>
+                                    <strong style="color: #ef4444;">Isolated - Traffic redirected to honeypot</strong>
                                 </div>
                             </div>
                             <button 
@@ -883,13 +888,13 @@ async function refreshReroutes() {
                                 onclick="removeReroute('${reroute.container}')"
                                 style="min-width: 120px; margin-left: 15px;"
                             >
-                                ✅ Restore to Network
+                                Restore to Network
                             </button>
                         </div>
                     </div>
                 `).join('');
             } else {
-                listDiv.innerHTML = '<div style="color: #6b7280; text-align: center; padding: 20px;">✅ No devices isolated. All devices on main network.</div>';
+                listDiv.innerHTML = '<div style="color: #6b7280; text-align: center; padding: 20px;">No devices isolated. All devices on main network.</div>';
             }
             
             // Show recent log entries
@@ -924,7 +929,7 @@ async function removeReroute(containerName) {
     showToast(`🔄 Restoring ${containerName} to main network...`, 'success');
     
     try {
-        const response = await fetch('/api/honeypot/remove_reroute', {
+        const response = await fetch('/api/beelzebub/remove_reroute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ container_name: containerName })
@@ -1046,35 +1051,6 @@ async function refreshMonitorLogs() {
     }
 }
 
-async function refreshNetworkAnalysis() {
-    try {
-        const response = await fetch('/api/logs/network');
-        const data = await response.json();
-        
-        const logsDisplay = document.getElementById('analysis-logs');
-        
-        if (!data.success || !data.logs) {
-            logsDisplay.innerHTML = '<div class="log-entry">No analysis logs available yet.</div>';
-            return;
-        }
-
-        // Display analysis output
-        const logLines = data.logs.split('\n').filter(line => line.trim());
-        
-        if (logLines.length === 0) {
-            logsDisplay.innerHTML = '<div class="log-entry">No analysis data yet</div>';
-            return;
-        }
-
-        logsDisplay.innerHTML = logLines.map(line => `
-            <div class="log-entry">${escapeHtml(line)}</div>
-        `).join('');
-
-    } catch (error) {
-        console.error('Error loading network analysis:', error);
-    }
-}
-
 async function checkMonitorHealth() {
     showToast('Checking monitor health...', 'success');
     try {
@@ -1121,8 +1097,8 @@ function switchTab(tabName) {
         refreshDeviceData();
     } else if (tabName === 'monitor-logs') {
         refreshMonitorLogsInTab();
-    } else if (tabName === 'honeypot-logs') {
-        viewHoneypotLogsInTab();
+    } else if (tabName === 'beelzebub-logs') {
+        viewBeelzebubLogsInTab();
     } else if (tabName === 'device-containers') {
         refreshDeviceContainerLogs();
     }
@@ -1160,12 +1136,12 @@ async function refreshMonitorLogsInTab() {
 }
 
 // View honeypot logs in tab
-async function viewHoneypotLogsInTab() {
+async function viewBeelzebubLogsInTab() {
     try {
-        const response = await fetch('/api/honeypot/logs');
+        const response = await fetch('/api/beelzebub/logs');
         const data = await response.json();
         
-        const logsDisplay = document.getElementById('honeypot-logs-tab');
+        const logsDisplay = document.getElementById('beelzebub-logs-tab');
         
         if (!data.success) {
             logsDisplay.innerHTML = `<div class="log-entry" style="color: #f87171;">Error: ${data.message || data.error || 'Failed to load logs'}</div>`;
@@ -1218,9 +1194,9 @@ async function viewHoneypotLogsInTab() {
         logsDisplay.scrollTop = logsDisplay.scrollHeight;
         
     } catch (error) {
-        const logsDisplay = document.getElementById('honeypot-logs-tab');
-        logsDisplay.innerHTML = `<div class="log-entry" style="color: #f87171;">Error loading honeypot logs: ${error.message}</div>`;
-        console.error('Error loading honeypot logs:', error);
+        const logsDisplay = document.getElementById('beelzebub-logs-tab');
+        logsDisplay.innerHTML = `<div class="log-entry" style="color: #f87171;">Error loading Beelzebub logs: ${error.message}</div>`;
+        console.error('Error loading Beelzebub logs:', error);
     }
 }
 
@@ -1405,14 +1381,8 @@ function drawNetworkMap(data) {
     // Place gateway in center
     positions['gateway'] = { x: centerX, y: centerY };
     
-    // Place honeypot gateway to the right
-    const honeypotGateway = nodes.find(n => n.id === 'honeypot_gateway');
-    if (honeypotGateway) {
-        positions['honeypot_gateway'] = { x: centerX + radius + 100, y: centerY };
-    }
-    
     // Place other nodes in circle around gateway
-    const otherNodes = nodes.filter(n => n.id !== 'gateway' && n.id !== 'honeypot_gateway');
+    const otherNodes = nodes.filter(n => n.id !== 'gateway');
     const angleStep = (2 * Math.PI) / (otherNodes.length || 1);
     
     otherNodes.forEach((node, index) => {
@@ -1809,7 +1779,7 @@ async function testAPIKey() {
 }
 
 // Quick reroute to honeypot
-async function quickRerouteToHoneypot() {
+async function quickRerouteToBeelzebub() {
     const input = document.getElementById('quick-reroute-ip');
     const deviceIp = input.value.trim();
     
@@ -1872,7 +1842,7 @@ setInterval(() => {
     } else if (currentPage === 'devices') {
         refreshDevices();
     } else if (currentPage === 'honeypot') {
-        refreshHoneypotStats();
+        refreshBeelzebubStats();
         refreshReroutes();
     } else if (currentPage === 'logs') {
         // Auto-refresh active tab in logs page
@@ -1884,7 +1854,7 @@ setInterval(() => {
             } else if (tabText.includes('Monitor')) {
                 refreshMonitorLogsInTab();
             } else if (tabText.includes('Honeypot')) {
-                viewHoneypotLogsInTab();
+                viewBeelzebubLogsInTab();
             }
         }
     }

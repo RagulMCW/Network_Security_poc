@@ -19,10 +19,10 @@
 - **Cleanup tool**: Remove stopped containers
 
 ### 🍯 Honeypot Page
-- **Control panel**: Start/stop honeypot with one click
+- **Control panel**: Start/stop Beelzebub with one click
 - **Live attack logs**: See attacker IPs, protocols, and data in real-time
 - **Attack counter**: Total attacks logged
-- **Dashboard link**: Quick access to honeypot monitoring (localhost:5001)
+- **Dashboard link**: Quick access to Beelzebub monitoring (localhost:5001)
 
 ### 💀 Attackers Page
 - **DOS simulation**: Start/stop attack containers
@@ -201,9 +201,9 @@ Logs Page (Browser)
 - `GET /api/device/status` - Check device status
 
 ### Honeypot
-- `POST /api/honeypot/start` - Start honeypot
-- `POST /api/honeypot/stop` - Stop honeypot
-- `GET /api/honeypot/logs` - Get attack logs
+- `POST /api/beelzebub/start` - Start Beelzebub
+- `POST /api/beelzebub/stop` - Stop Beelzebub
+- `GET /api/beelzebub/logs` - Get attack logs
 
 ### Attackers
 - `POST /api/attackers/start` - Start DOS attackers
@@ -273,7 +273,7 @@ Logs Page (Browser)
 
 7. **Monitor Everything** (Overview Page)
    - See all statistics
-   - 8 running containers (3 devices + honeypot + monitor + attackers)
+   - 8 running containers (3 devices + Beelzebub + monitor + attackers)
    - 3 active devices
    - 3 registered devices
    - Attacks accumulating

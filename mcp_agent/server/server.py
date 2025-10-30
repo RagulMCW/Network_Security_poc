@@ -27,7 +27,7 @@ Continuously monitor network traffic, identify threats, and automatically isolat
 
 AVAILABLE TOOLS:
 1. analyze_traffic - Analyze network captures for threats, connected devices, traffic patterns
-2. move_device_to_honeypot - Immediately isolate malicious devices (automatic, no approval needed)
+2. move_device_to_beelzebub - Immediately isolate malicious devices (automatic, no approval needed)
 
 AUTOMATIC THREAT RESPONSE (NO HUMAN APPROVAL REQUIRED):
 ✅ DoS/DDoS Attack (>500 packets from single IP) → AUTO-ISOLATE
@@ -42,7 +42,7 @@ WORKFLOW FOR EVERY USER QUERY:
    - Connected devices and their IPs
    - Traffic statistics (packet counts, protocols)
    - Any anomalies or attack patterns
-3. If threats detected → IMMEDIATELY call move_device_to_honeypot (don't ask, just do it)
+3. If threats detected → IMMEDIATELY call move_device_to_beelzebub (don't ask, just do it)
 4. Provide comprehensive summary:
    - Network status overview
    - Connected devices (count, IPs, status)
@@ -78,16 +78,16 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
         
         @self.mcp.tool
         def move_device_to_honeypot(device_id: str, reason: str = "Suspicious activity detected") -> str:
-            """Move a malicious or suspicious device from custom_net to honeypot_net for isolation.
+            """Move a malicious or suspicious device from custom_net to honeypot_net (Beelzebub) for isolation.
             
             Args:
                 device_id: Container name (e.g., 'device_001', 'vdevice_001', 'hping3-attacker', etc.)
-                reason: Reason for moving device to honeypot (e.g., 'DoS attack', 'Port scanning')
+                reason: Reason for moving device to Beelzebub honeypot (e.g., 'DoS attack', 'Port scanning')
             
             Returns:
                 Status message indicating success or failure
             """
-            return self._move_device_to_honeypot(device_id, reason)
+            return self._move_device_to_beelzebub(device_id, reason)
 
     
     def _run_analyze_bat(self) -> str:
@@ -118,8 +118,8 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
         except Exception as e:
             return f"ERROR: {str(e)}"
     
-    def _move_device_to_honeypot(self, device_id: str, reason: str) -> str:
-        """Move device from custom_net to honeypot_net"""
+    def _move_device_to_beelzebub(self, device_id: str, reason: str) -> str:
+        """Move device from custom_net to honeypot_net (Beelzebub)"""
         try:
             # Accept any container name (device_001, vdevice_001, hping3-attacker, etc.)
             container_name = device_id
@@ -167,36 +167,74 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
                 if create_result.returncode != 0:
                     return f"ERROR: Failed to create honeypot_net: {create_result.stderr}"
             
-            # Disconnect from custom_net
-            disconnect_cmd = f"docker network disconnect custom_net {container_name} 2>/dev/null || true"
-            subprocess.run(
-                ['wsl', 'bash', '-c', disconnect_cmd],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            # Connect to honeypot_net
-            connect_cmd = f"docker network connect honeypot_net {container_name}"
-            connect_result = subprocess.run(
-                ['wsl', 'bash', '-c', connect_cmd],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if connect_result.returncode != 0:
-                return f"ERROR: Failed to connect to honeypot_net: {connect_result.stderr}"
-            
-            # Get new IP address
-            ip_cmd = f"docker inspect -f '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}}{{{{end}}}}' {container_name}"
-            ip_result = subprocess.run(
-                ['wsl', 'bash', '-c', ip_cmd],
+            # Get container's current IP on custom_net (before rerouting)
+            get_ip_cmd = f"docker inspect {container_name} --format '{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}'"
+            current_ip_result = subprocess.run(
+                ['wsl', 'bash', '-c', get_ip_cmd],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            new_ip = ip_result.stdout.strip() if ip_result.returncode == 0 else "Unknown"
+            container_ip = current_ip_result.stdout.strip() if current_ip_result.returncode == 0 else None
+            
+            # Check if already on honeypot_net
+            check_honeypot_cmd = f"docker inspect {container_name} --format '{{{{.NetworkSettings.Networks.honeypot_net.IPAddress}}}}'"
+            check_result = subprocess.run(
+                ['wsl', 'bash', '-c', check_honeypot_cmd],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            already_on_honeypot = check_result.returncode == 0 and check_result.stdout.strip()
+            
+            # Connect to honeypot_net (DUAL-HOMED: keep custom_net for monitor server communication)
+            if not already_on_honeypot:
+                connect_cmd = f"docker network connect honeypot_net {container_name}"
+                connect_result = subprocess.run(
+                    ['wsl', 'bash', '-c', connect_cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if connect_result.returncode != 0:
+                    return f"ERROR: Failed to connect to honeypot_net: {connect_result.stderr}"
+            
+            # Get IP on honeypot_net
+            honeypot_ip_cmd = f"docker inspect {container_name} --format '{{{{.NetworkSettings.Networks.honeypot_net.IPAddress}}}}'"
+            honeypot_ip_result = subprocess.run(
+                ['wsl', 'bash', '-c', honeypot_ip_cmd],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            device_honeypot_ip = honeypot_ip_result.stdout.strip() if honeypot_ip_result.returncode == 0 else "Unknown"
+            
+            # Get Beelzebub honeypot IP dynamically (check both standalone and docker-compose networks)
+            beelzebub_ip_cmd = "docker inspect beelzebub-honeypot --format '{{range $net, $conf := .NetworkSettings.Networks}}{{if or (eq $net \"honeypot_net\") (contains $net \"honeypot\")}}{{$conf.IPAddress}}{{end}}{{end}}' 2>/dev/null || echo '172.18.0.2'"
+            beelzebub_ip_result = subprocess.run(
+                ['wsl', 'bash', '-c', beelzebub_ip_cmd],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            honeypot_target_ip = beelzebub_ip_result.stdout.strip() if beelzebub_ip_result.returncode == 0 and beelzebub_ip_result.stdout.strip() else '172.18.0.2'
+            
+            if container_ip:
+                # Apply iptables DNAT rules to redirect traffic
+                iptables_rules = [
+                    f'iptables -t nat -A PREROUTING -s {container_ip} -p tcp -j DNAT --to-destination {honeypot_target_ip}',
+                    f'iptables -t nat -A PREROUTING -s {container_ip} -p udp -j DNAT --to-destination {honeypot_target_ip}',
+                    f'iptables -t mangle -A PREROUTING -s {container_ip} -j MARK --set-mark 100',
+                ]
+                
+                for rule in iptables_rules:
+                    subprocess.run(
+                        ['wsl', 'bash', '-c', f'sudo {rule}'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
             
             # Log the reroute
             log_entry = {
@@ -204,8 +242,11 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
                 'device_id': device_id,
                 'container_name': container_name,
                 'reason': reason,
-                'new_ip': new_ip,
-                'network': 'honeypot_net'
+                'original_ip': container_ip,
+                'honeypot_ip': device_honeypot_ip,
+                'honeypot_target': honeypot_target_ip,
+                'network': 'honeypot_net',
+                'method': 'iptables_redirect'
             }
             
             log_file = self.project_root / 'honey_pot' / 'logs' / 'reroutes.log'
@@ -229,13 +270,15 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
                 for log in existing_logs:
                     f.write(log + '\n')
             
-            result = f"✅ SUCCESS: Device moved to honeypot network\n\n"
+            result = f"SUCCESS: Device moved to honeypot network\n\n"
             result += f"Device: {device_id} ({container_name})\n"
             result += f"Reason: {reason}\n"
-            result += f"New Network: honeypot_net\n"
-            result += f"New IP: {new_ip}\n"
-            result += f"Status: ISOLATED - All traffic now monitored by honeypot\n"
-            result += f"\nThe device is now quarantined and cannot access production network."
+            result += f"Original IP: {container_ip}\n"
+            result += f"Honeypot IP: {device_honeypot_ip}\n"
+            result += f"Traffic Target: {honeypot_target_ip}\n"
+            result += f"Method: iptables DNAT redirect\n"
+            result += f"Status: ISOLATED\n"
+            result += f"\nDevice quarantined. All traffic redirected to honeypot via iptables."
             
             return result
             

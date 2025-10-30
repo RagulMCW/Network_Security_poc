@@ -42,9 +42,30 @@ docker run --rm --cap-add=NET_RAW \
 
 ## Using Docker Compose
 
+### Start the attacker:
 ```bash
-docker-compose up --build
+docker-compose up -d
 ```
+
+### Stop the attacker:
+```bash
+docker-compose down
+```
+
+### Clean up iptables rules (IMPORTANT!):
+If the AI agent isolated the attacker, you **MUST** clean up iptables rules before restarting:
+
+**Windows:**
+```batch
+cleanup_iptables.bat
+```
+
+**Linux/WSL:**
+```bash
+bash cleanup_iptables.sh
+```
+
+**Why?** When the AI detects a DoS attack, it creates iptables rules to redirect traffic to the honeypot. These rules persist even after stopping the container, so the next test won't show traffic in PCAP files.
 
 To modify the configuration, edit the environment variables in `docker-compose.yml`.
 

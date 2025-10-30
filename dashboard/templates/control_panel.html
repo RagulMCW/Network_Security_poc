@@ -496,18 +496,18 @@
     <nav class="navbar">
         <div class="nav-container">
             <div class="logo">
-                🛡️ Network Security Control Panel
+                Network Security Control Panel
             </div>
             <div class="nav-links">
-                <button class="nav-btn active" onclick="showPage('overview')">📊 Overview</button>
-                <button class="nav-btn" onclick="showPage('network-map')">🗺️ Network Map</button>
-                <button class="nav-btn" onclick="showPage('monitor')">🖥️ Monitor Server</button>
-                <button class="nav-btn" onclick="showPage('devices')">📱 Devices</button>
-                <button class="nav-btn" onclick="showPage('honeypot')">🍯 Honeypot</button>
-                <button class="nav-btn" onclick="showPage('attackers')">💀 Attackers</button>
-                <button class="nav-btn" onclick="showPage('agent')">🤖 AI Agent</button>
-                <button class="nav-btn" onclick="showPage('logs')">📋 Logs</button>
-                <button class="nav-btn danger" onclick="confirmStopAll()">🧨 STOP ALL</button>
+                <button class="nav-btn active" onclick="showPage('overview')">Overview</button>
+                <button class="nav-btn" onclick="showPage('network-map')">Network Map</button>
+                <button class="nav-btn" onclick="showPage('monitor')">Monitor Server</button>
+                <button class="nav-btn" onclick="showPage('devices')">Devices</button>
+                <button class="nav-btn" onclick="showPage('beelzebub')">Beelzebub</button>
+                <button class="nav-btn" onclick="showPage('attackers')">Attackers</button>
+                <button class="nav-btn" onclick="showPage('agent')">AI Agent</button>
+                <button class="nav-btn" onclick="showPage('logs')">Logs</button>
+                <button class="nav-btn danger" onclick="confirmStopAll()">STOP ALL</button>
             </div>
         </div>
     </nav>
@@ -543,8 +543,8 @@
                     <div class="stat-label">Monitor Server</div>
                 </div>
                 <div class="stat-box">
-                    <div class="stat-value" id="stat-honeypot">OFF</div>
-                    <div class="stat-label">Honeypot Status</div>
+                    <div class="stat-value" id="stat-beelzebub">OFF</div>
+                    <div class="stat-label">Beelzebub Status</div>
                 </div>
             </div>
 
@@ -552,7 +552,7 @@
                 <!-- Network Control -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">🌐 Network Control</div>
+                        <div class="card-title">Network Control</div>
                         <span class="status-badge" id="network-status">OFF</span>
                     </div>
                     <p style="color: #6b7280; margin-bottom: 15px;">
@@ -560,10 +560,10 @@
                     </p>
                     <div class="controls">
                         <button class="btn btn-success" onclick="createNetwork()">
-                            ▶️ Create Network
+                            Create Network
                         </button>
                         <button class="btn btn-danger" onclick="deleteNetwork()">
-                            ⏹️ Delete Network
+                            Delete Network
                         </button>
                     </div>
                 </div>
@@ -571,20 +571,20 @@
                 <!-- Quick Stats -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">📊 Quick Actions</div>
+                        <div class="card-title">Quick Actions</div>
                     </div>
                     <div class="controls">
                         <button class="btn btn-primary" onclick="showPage('monitor')">
-                            🖥️ Monitor Server
+                            Monitor Server
                         </button>
                         <button class="btn btn-primary" onclick="showPage('devices')">
-                            📱 Manage Devices
+                            Manage Devices
                         </button>
-                        <button class="btn btn-primary" onclick="showPage('honeypot')">
-                            🍯 View Honeypot
+                        <button class="btn btn-primary" onclick="showPage('beelzebub')">
+                            View Beelzebub
                         </button>
                         <button class="btn btn-warning" onclick="refreshAll()">
-                            🔄 Refresh All
+                            Refresh All
                         </button>
                     </div>
                 </div>
@@ -638,15 +638,15 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; background: #f59e0b; border-radius: 50%;"></div>
-                            <span>Honeypot</span>
+                            <span>Beelzebub</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; background: #fb923c; border-radius: 50%;"></div>
-                            <span>Honeypot Network</span>
+                            <span>Beelzebub Network</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; background: #fdba74; border-radius: 50%;"></div>
-                            <span>Honeypot Device</span>
+                            <span>Isolated Device</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; background: #8b5cf6; border-radius: 50%;"></div>
@@ -743,18 +743,6 @@
                     <div class="log-entry">Click "Refresh Logs" to load server logs...</div>
                 </div>
             </div>
-
-            <div class="card" style="margin-top: 20px;">
-                <div class="card-header">
-                    <div class="card-title">📊 Network Analysis Output</div>
-                    <button class="btn btn-primary btn-small" onclick="refreshNetworkAnalysis()">
-                        🔄 Refresh
-                    </button>
-                </div>
-                <div class="logs-container" id="analysis-logs">
-                    <div class="log-entry">Click "Refresh" to load analysis logs...</div>
-                </div>
-            </div>
         </div>
 
         <!-- Devices Page -->
@@ -766,25 +754,25 @@
 
             <div class="card" style="margin-bottom: 20px;">
                 <div class="card-header">
-                    <div class="card-title">➕ Add New Device</div>
+                    <div class="card-title">Add New Device</div>
                     <span class="status-badge status-off" id="device-count-badge">0 Devices</span>
                 </div>
                 <div class="input-group">
                     <select id="device-type">
-                        <option value="generic">🔧 Generic Device</option>
-                        <option value="iot_sensor">📡 IoT Sensor</option>
-                        <option value="smartphone">📱 Smartphone</option>
-                        <option value="laptop">💻 Laptop</option>
-                        <option value="camera">📷 Camera</option>
+                        <option value="generic">Generic Device</option>
+                        <option value="iot_sensor">IoT Sensor</option>
+                        <option value="smartphone">Smartphone</option>
+                        <option value="laptop">Laptop</option>
+                        <option value="camera">Camera</option>
                     </select>
                     <button class="btn btn-success" onclick="createDevice()">
-                        ➕ Create Device
+                        Create Device
                     </button>
                     <button class="btn btn-warning" onclick="refreshDevices()">
-                        🔄 Refresh
+                        Refresh
                     </button>
                     <button class="btn btn-secondary" onclick="cleanupDevices()">
-                        🧹 Cleanup Stopped
+                        Cleanup Stopped
                     </button>
                 </div>
             </div>
@@ -792,59 +780,59 @@
             <div id="devices-container"></div>
         </div>
 
-        <!-- Honeypot Page -->
-        <div id="page-honeypot" class="page">
+        <!-- Beelzebub Page -->
+        <div id="page-beelzebub" class="page">
             <header>
-                <h2>Beelzebub AI Honeypot</h2>
-                <p class="subtitle">AI-powered interactive honeypot with LLM integration</p>
+                <h2>Beelzebub Honeypot</h2>
+                <p class="subtitle">Intelligent honeypot for capturing and analyzing malicious traffic</p>
             </header>
 
             <div class="grid">
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">🍯 Honeypot Control</div>
-                        <span class="status-badge" id="honeypot-status">OFF</span>
+                        <div class="card-title">Beelzebub Control</div>
+                        <span class="status-badge" id="beelzebub-status">OFF</span>
                     </div>
                     <div style="color: #6b7280; margin-bottom: 15px;">
-                        <p><strong>🌐 Network:</strong> Dual-homed (honeypot_net + custom_net)</p>
-                        <p><strong>📍 IPs:</strong> 192.168.7.100 (isolated) | 192.168.6.200 (visible)</p>
-                        <p><strong>🧠 AI Engine:</strong> Beelzebub with OpenAI GPT-4 integration</p>
+                        <p><strong>Network:</strong> Dual-homed (honeypot_net + custom_net)</p>
+                        <p><strong>IP:</strong> 192.168.7.2 (honeypot_net)</p>
+                        <p><strong>Services:</strong> SSH, HTTP, MySQL, PostgreSQL, FTP, Telnet</p>
                     </div>
                     <div class="controls">
-                        <button class="btn btn-success" onclick="startHoneypot()">
-                            ▶️ Start Honeypot
+                        <button class="btn btn-success" onclick="startBeelzebub()">
+                            Start Beelzebub
                         </button>
-                        <button class="btn btn-danger" onclick="stopHoneypot()">
-                            ⏹️ Stop Honeypot
+                        <button class="btn btn-danger" onclick="stopBeelzebub()">
+                            Stop Beelzebub
                         </button>
-                        <button class="btn btn-warning" onclick="refreshHoneypotStats()">
-                            � Refresh Stats
+                        <button class="btn btn-warning" onclick="refreshBeelzebubStats()">
+                            Refresh Stats
                         </button>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">🎯 Active Services</div>
-                        <span class="status-badge status-off" id="honeypot-services-count">0 Services</span>
+                        <div class="card-title">Active Services</div>
+                        <span class="status-badge status-off" id="beelzebub-services-count">0 Services</span>
                     </div>
-                    <div id="honeypot-services" style="color: #6b7280;">
-                        <p>🔌 SSH: <strong>Port 2222</strong></p>
-                        <p>🌐 HTTP Admin Panel: <strong>Port 8080</strong></p>
-                        <p>🌐 HTTP Alt: <strong>Port 8081</strong></p>
-                        <p>🗄️ MySQL: <strong>Port 3306</strong></p>
-                        <p>🗄️ PostgreSQL: <strong>Port 5432</strong></p>
-                        <p>📊 Log Viewer: <strong><a href="http://localhost:8888/logs" target="_blank" style="color: #667eea;">Port 8888</a></strong></p>
+                    <div id="beelzebub-services" style="color: #6b7280;">
+                        <p>SSH: <strong>Port 2222</strong></p>
+                        <p>HTTP Admin Panel: <strong>Port 8080</strong></p>
+                        <p>HTTP Alt: <strong>Port 8081</strong></p>
+                        <p>MySQL: <strong>Port 3306</strong></p>
+                        <p>PostgreSQL: <strong>Port 5432</strong></p>
+                        <p>Log Viewer: <strong><a href="http://localhost:8888/logs" target="_blank" style="color: #667eea;">Port 8888</a></strong></p>
                     </div>
                 </div>
             </div>
 
             <div class="card" style="margin-top: 20px;">
                 <div class="card-header">
-                    <div class="card-title">📊 Interaction Statistics</div>
-                    <span class="status-badge status-off" id="honeypot-interactions">0 Interactions</span>
+                    <div class="card-title">Interaction Statistics</div>
+                    <span class="status-badge status-off" id="beelzebub-interactions">0 Interactions</span>
                 </div>
-                <div class="logs-container" id="honeypot-logs">
+                <div class="logs-container" id="beelzebub-logs">
                     <div class="log-entry">No attacker interactions logged yet</div>
                 </div>
             </div>
@@ -867,8 +855,8 @@
                             placeholder="Enter IP address (e.g., 192.168.6.50)"
                             style="flex: 1; padding: 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 14px;"
                         >
-                        <button class="btn btn-primary" onclick="rerouteIPToHoneypot()">
-                            🎯 Reroute to Honeypot
+                        <button class="btn btn-primary" onclick="rerouteIPToBeelzebub()">
+                            🎯 Reroute to Beelzebub
                         </button>
                     </div>
                     <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
@@ -971,13 +959,13 @@
         <!-- Attackers Page -->
         <div id="page-attackers" class="page">
             <header>
-                <h2>💀 DOS Attackers</h2>
+                <h2>DOS Attackers</h2>
                 <p class="subtitle">Simulate attacks for testing</p>
             </header>
 
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">💀 Attacker Control</div>
+                    <div class="card-title">Attacker Control</div>
                     <span class="status-badge" id="attacker-status">OFF</span>
                 </div>
                 <p style="color: #6b7280; margin-bottom: 15px;">
@@ -985,10 +973,10 @@
                 </p>
                 <div class="controls">
                     <button class="btn btn-success" onclick="startAttackers()">
-                        ▶️ Start Attackers
+                        Start Attackers
                     </button>
                     <button class="btn btn-danger" onclick="stopAttackers()">
-                        ⏹️ Stop Attackers
+                        Stop Attackers
                     </button>
                 </div>
             </div>
@@ -1114,7 +1102,7 @@
             <!-- Quick Reroute Tool -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">🚨 Quick Reroute to Honeypot</div>
+                    <div class="card-title">🚨 Quick Reroute to Beelzebub</div>
                 </div>
                 <div style="padding: 15px;">
                     <p style="color: #bbb; margin-bottom: 15px;">
@@ -1134,7 +1122,7 @@
                                 color: white;
                             "
                         />
-                        <button class="btn btn-danger" onclick="quickRerouteToHoneypot()">
+                        <button class="btn btn-danger" onclick="quickRerouteToBeelzebub()">
                             <i class="fas fa-route"></i> Reroute Now
                         </button>
                     </div>
@@ -1153,7 +1141,7 @@
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('device-data')">📡 Device Data</button>
                 <button class="tab" onclick="switchTab('monitor-logs')">🖥️ Monitor Server</button>
-                <button class="tab" onclick="switchTab('honeypot-logs')">🍯 Honeypot Attacks</button>
+                <button class="tab" onclick="switchTab('beelzebub-logs')">🍯 Beelzebub Attacks</button>
                 <button class="tab" onclick="switchTab('device-containers')">🐳 Device Containers</button>
             </div>
 
@@ -1201,15 +1189,15 @@
             </div>
 
             <!-- Honeypot Logs Tab -->
-            <div id="tab-honeypot-logs" class="tab-content">
+            <div id="tab-beelzebub-logs" class="tab-content">
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">🍯 Honeypot Attack Logs</div>
-                        <button class="btn btn-primary btn-small" onclick="viewHoneypotLogsInTab()">
+                        <button class="btn btn-primary btn-small" onclick="viewBeelzebubLogsInTab()">
                             🔄 Refresh
                         </button>
                     </div>
-                    <div class="logs-container" id="honeypot-logs-tab">
+                    <div class="logs-container" id="beelzebub-logs-tab">
                         <div class="log-entry">Click "Refresh" to load honeypot attack logs...</div>
                     </div>
                 </div>

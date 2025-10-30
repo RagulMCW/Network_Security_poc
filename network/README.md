@@ -1,3 +1,13 @@
+> **⚠️ CRITICAL: USE HOST-BASED PACKET CAPTURE**
+> 
+> For capturing DoS attacks and SYN floods, use: start_capture.bat
+> 
+> Container-based tcpdump CANNOT capture traffic between containers due to Docker networking limitations.
+> 
+> See [PCAP_CAPTURE_FIX.md](PCAP_CAPTURE_FIX.md) for full explanation.
+
+---
+
 # Network Security Monitor# Network Security Monitor
 
 

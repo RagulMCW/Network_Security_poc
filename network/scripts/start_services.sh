@@ -24,11 +24,15 @@ if ! ip link show "${IFACE}" >/dev/null 2>&1; then
 fi
 
 # Start tcpdump with TIME-based rotation (10 seconds) in promiscuous mode
+# Capture ALL traffic including SYN floods, DoS attacks, etc.
+# Remove port 22 filter to catch everything
 echo "Starting packet capture with 10-second rotation..."
-tcpdump -i "${IFACE}" -s 0 -G 10 -w "${CAP_DIR}/capture_%Y%m%d_%H%M%S.pcap" \
-    'not port 22' >/dev/null 2>&1 &
+tcpdump -i "${IFACE}" -p -s 0 -G 10 -w "${CAP_DIR}/capture_%Y%m%d_%H%M%S.pcap" \
+    -B 4096 >/dev/null 2>&1 &
 TCPDUMP_PID=$!
-echo "tcpdump started (PID: ${TCPDUMP_PID}) - capturing all network traffic"
+echo "tcpdump started (PID: ${TCPDUMP_PID}) - capturing ALL network traffic (including floods)"
+echo "Promiscuous mode: OFF (container networking limitation)"
+echo "Buffer: 4096 KB (for high-speed capture)"
 echo "New PCAP file created every 10 seconds"
 
 # Start automatic PCAP cleanup (keep only 4 most recent files)

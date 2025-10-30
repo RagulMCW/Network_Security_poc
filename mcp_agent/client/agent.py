@@ -389,16 +389,16 @@ class MCPAgent:
                                         print(f"⚠️ Error reading {pcap_file}: {e}")
                         
                         if total_packets == 0:
-                            return "⚠️ PCAP files found but contain no packets. Network monitoring may not be working."
+                            return "WARNING: PCAP files found but contain no packets. Network monitoring may not be working."
                         
                         # Build comprehensive analysis report
-                        analysis_data = f"📊 NETWORK TRAFFIC ANALYSIS\n"
+                        analysis_data = "NETWORK TRAFFIC ANALYSIS\n"
                         analysis_data += "=" * 70 + "\n"
                         analysis_data += f"Analyzed Files: {', '.join(last_3_files)}\n"
-                        analysis_data += f"Total Packets Captured: {total_packets}\n"
-                        analysis_data += f"Unique Devices Detected: {len(all_devices)}\n"
-                        analysis_data += f"Unique Source IPs: {len(all_src_ips)}\n"
-                        analysis_data += f"Unique Destination IPs: {len(all_dst_ips)}\n"
+                        analysis_data += f"Total Packets: {total_packets}\n"
+                        analysis_data += f"Unique Devices: {len(all_devices)}\n"
+                        analysis_data += f"Source IPs: {len(all_src_ips)}\n"
+                        analysis_data += f"Destination IPs: {len(all_dst_ips)}\n"
                         analysis_data += "=" * 70 + "\n\n"
                         
                         # Get network information for each IP using Docker
@@ -460,77 +460,77 @@ class MCPAgent:
                                         production_devices.append(device_data)
                         
                         # Display Production Network Devices
-                        analysis_data += "🌐 PRODUCTION NETWORK (custom_net - 192.168.6.0/24):\n"
+                        analysis_data += "PRODUCTION NETWORK (custom_net - 192.168.6.0/24):\n"
                         if production_devices:
                             for idx, dev in enumerate(production_devices, 1):
-                                analysis_data += f"   ├─ Node {idx}: {dev['container'] if dev['container'] != 'unknown' else 'Device'}\n"
-                                analysis_data += f"   │  ├─ IP Address: {dev['ip']}\n"
-                                analysis_data += f"   │  ├─ MAC Address: {dev['mac']}\n"
-                                analysis_data += f"   │  ├─ Packets Sent: {dev['packets_sent']}\n"
-                                analysis_data += f"   │  └─ Packets Received: {dev['packets_received']}\n"
+                                analysis_data += f"  Node {idx}: {dev['container'] if dev['container'] != 'unknown' else 'Device'}\n"
+                                analysis_data += f"    IP: {dev['ip']}\n"
+                                analysis_data += f"    MAC: {dev['mac']}\n"
+                                analysis_data += f"    TX: {dev['packets_sent']} packets\n"
+                                analysis_data += f"    RX: {dev['packets_received']} packets\n"
                                 if idx < len(production_devices):
-                                    analysis_data += "   │\n"
+                                    analysis_data += "\n"
                         else:
-                            analysis_data += "   └─ No active devices\n"
+                            analysis_data += "  No active devices\n"
                         analysis_data += "\n"
                         
                         # Display Honeypot Network Devices
-                        analysis_data += "🍯 HONEYPOT NETWORK (honeypot_net - 192.168.7.0/24):\n"
+                        analysis_data += "HONEYPOT NETWORK (honeypot_net - 192.168.7.0/24):\n"
                         if honeypot_devices:
                             for idx, dev in enumerate(honeypot_devices, 1):
-                                analysis_data += f"   ├─ ⚠️  ISOLATED Node {idx}: {dev['container'] if dev['container'] != 'unknown' else 'Device'}\n"
-                                analysis_data += f"   │  ├─ IP Address: {dev['ip']}\n"
-                                analysis_data += f"   │  ├─ MAC Address: {dev['mac']}\n"
-                                analysis_data += f"   │  ├─ Packets Sent: {dev['packets_sent']}\n"
-                                analysis_data += f"   │  └─ Packets Received: {dev['packets_received']}\n"
+                                analysis_data += f"  ISOLATED Node {idx}: {dev['container'] if dev['container'] != 'unknown' else 'Device'}\n"
+                                analysis_data += f"    IP: {dev['ip']}\n"
+                                analysis_data += f"    MAC: {dev['mac']}\n"
+                                analysis_data += f"    TX: {dev['packets_sent']} packets\n"
+                                analysis_data += f"    RX: {dev['packets_received']} packets\n"
                                 if idx < len(honeypot_devices):
-                                    analysis_data += "   │\n"
+                                    analysis_data += "\n"
                         else:
-                            analysis_data += "   └─ No isolated devices (network secure)\n"
+                            analysis_data += "  No isolated devices\n"
                         analysis_data += "\n"
                         
                         # Protocol Distribution
-                        analysis_data += "📡 PROTOCOL DISTRIBUTION:\n"
+                        analysis_data += "PROTOCOL DISTRIBUTION:\n"
                         for proto, count in protocols.items():
                             if count > 0:
                                 pct = (count / total_packets * 100)
-                                analysis_data += f"   {proto:8s}: {count:6d} packets ({pct:5.1f}%)\n"
+                                analysis_data += f"  {proto:8s}: {count:6d} packets ({pct:5.1f}%)\n"
                         analysis_data += "\n"
                         
                         # Top Source IPs
-                        analysis_data += "📤 TOP SOURCE IPs (Most Active):\n"
+                        analysis_data += "TOP SOURCE IPs:\n"
                         sorted_srcs = sorted(all_src_ips.items(), key=lambda x: x[1], reverse=True)[:10]
                         for ip, count in sorted_srcs:
                             pct = (count / total_packets * 100)
-                            analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
+                            analysis_data += f"  {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
                         analysis_data += "\n"
                         
                         # Top Destination IPs
-                        analysis_data += "📥 TOP DESTINATION IPs:\n"
+                        analysis_data += "TOP DESTINATION IPs:\n"
                         sorted_dsts = sorted(all_dst_ips.items(), key=lambda x: x[1], reverse=True)[:10]
                         for ip, count in sorted_dsts:
                             pct = (count / total_packets * 100)
-                            analysis_data += f"   {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
+                            analysis_data += f"  {ip:15s}: {count:6d} packets ({pct:5.1f}%)\n"
                         analysis_data += "\n"
                         
                         # Top TCP Ports
                         if tcp_ports:
-                            analysis_data += "🔌 TOP TCP PORTS:\n"
+                            analysis_data += "TOP TCP PORTS:\n"
                             sorted_tcp = sorted(tcp_ports.items(), key=lambda x: x[1], reverse=True)[:5]
                             for port, count in sorted_tcp:
-                                analysis_data += f"   Port {port:5d}: {count:6d} packets\n"
+                                analysis_data += f"  Port {port:5d}: {count:6d} packets\n"
                             analysis_data += "\n"
                         
                         # Top UDP Ports
                         if udp_ports:
-                            analysis_data += "🔌 TOP UDP PORTS:\n"
+                            analysis_data += "TOP UDP PORTS:\n"
                             sorted_udp = sorted(udp_ports.items(), key=lambda x: x[1], reverse=True)[:5]
                             for port, count in sorted_udp:
-                                analysis_data += f"   Port {port:5d}: {count:6d} packets\n"
+                                analysis_data += f"  Port {port:5d}: {count:6d} packets\n"
                             analysis_data += "\n"
                         
                         # Security Analysis with REALISTIC Threat Detection
-                        analysis_data += "🛡️  SECURITY THREAT ANALYSIS:\n"
+                        analysis_data += "SECURITY THREAT ANALYSIS:\n"
                         threats_detected = []
                         critical_threats = []
                         devices_to_isolate = []  # Track devices for auto-isolation
@@ -554,24 +554,24 @@ class MCPAgent:
                             pct_of_traffic = (src_count / total_packets * 100)
                             
                             if src_count > 3000 or pct_of_traffic > 70:
-                                threat_level = "🔴 CRITICAL THREAT"
-                                analysis_data += f"\n   {threat_level}: DoS/DDoS ATTACK from {src_ip}\n"
-                                analysis_data += f"      → Packet Volume: {src_count:,} packets in 30 seconds ({pct_of_traffic:.1f}% of traffic)\n"
-                                analysis_data += f"      → Attack Rate: ~{src_count//30} packets/second (FLOODING!)\n"
-                                analysis_data += f"      → Attack Type: Volume-based DoS overwhelming network bandwidth\n"
-                                analysis_data += f"      → Impact: CRITICAL - Network severely degraded\n"
-                                analysis_data += f"      → AUTO-ACTION: Isolating {src_ip} to honeypot NOW!\n"
+                                threat_level = "[CRITICAL]"
+                                analysis_data += f"\n  {threat_level} DoS/DDoS ATTACK from {src_ip}\n"
+                                analysis_data += f"    Packet Volume: {src_count:,} packets in 30s ({pct_of_traffic:.1f}%)\n"
+                                analysis_data += f"    Attack Rate: ~{src_count//30} packets/second\n"
+                                analysis_data += f"    Type: Volume-based DoS\n"
+                                analysis_data += f"    Impact: CRITICAL - Network degraded\n"
+                                analysis_data += f"    Action: Auto-isolating {src_ip} to honeypot\n"
                                 threats_detected.append(f"CRITICAL DoS Attack from {src_ip} ({src_count:,} packets)")
                                 critical_threats.append(src_ip)
                                 devices_to_isolate.append(src_ip)
                                 
                             elif src_count > 1500 or pct_of_traffic > 60:
-                                threat_level = "🟠 HIGH THREAT"
-                                analysis_data += f"\n   {threat_level}: Suspicious flooding from {src_ip}\n"
-                                analysis_data += f"      → Packet Volume: {src_count:,} packets in 30 seconds ({pct_of_traffic:.1f}% of traffic)\n"
-                                analysis_data += f"      → Attack Rate: ~{src_count//30} packets/second\n"
-                                analysis_data += f"      → Likely: DoS attempt or compromised device\n"
-                                analysis_data += f"      → AUTO-ACTION: Isolating {src_ip} to honeypot\n"
+                                threat_level = "[HIGH]"
+                                analysis_data += f"\n  {threat_level} Suspicious flooding from {src_ip}\n"
+                                analysis_data += f"    Packet Volume: {src_count:,} packets in 30s ({pct_of_traffic:.1f}%)\n"
+                                analysis_data += f"    Attack Rate: ~{src_count//30} packets/second\n"
+                                analysis_data += f"    Assessment: Likely DoS or compromised device\n"
+                                analysis_data += f"    Action: Auto-isolating {src_ip} to honeypot\n"
                                 threats_detected.append(f"HIGH: Possible DoS from {src_ip} ({src_count:,} packets)")
                                 devices_to_isolate.append(src_ip)
                         
@@ -584,10 +584,10 @@ class MCPAgent:
                         
                         if port_scanners:
                             for scanner_ip, port_count in port_scanners:
-                                analysis_data += f"\n   🔴 CRITICAL: PORT SCANNING ATTACK from {scanner_ip}!\n"
-                                analysis_data += f"      → Scanned Ports: {port_count} unique ports accessed\n"
-                                analysis_data += f"      → Attack Phase: Reconnaissance (mapping vulnerabilities)\n"
-                                analysis_data += f"      → Next Expected: Exploitation attempts on found services\n"
+                                analysis_data += f"\n  [CRITICAL] PORT SCAN ATTACK from {scanner_ip}\n"
+                                analysis_data += f"    Scanned Ports: {port_count} unique ports\n"
+                                analysis_data += f"    Attack Phase: Reconnaissance\n"
+                                analysis_data += f"    Next Expected: Exploitation attempts\n"
                                 analysis_data += f"      → AUTO-ACTION: Isolating {scanner_ip} to honeypot\n"
                                 threats_detected.append(f"Port Scanning Attack from {scanner_ip} ({port_count} ports)")
                                 critical_threats.append(scanner_ip)
@@ -618,13 +618,13 @@ class MCPAgent:
                         
                         # Summary
                         if not threats_detected:
-                            analysis_data += "\n   ✅ No security threats detected\n"
-                            analysis_data += "   ✅ Network traffic appears normal\n"
+                            analysis_data += "\n  No security threats detected\n"
+                            analysis_data += "  Network traffic appears normal\n"
                         else:
                             analysis_data += f"\n{'='*70}\n"
-                            analysis_data += f"⚠️  TOTAL THREATS DETECTED: {len(threats_detected)}\n"
+                            analysis_data += f"TOTAL THREATS DETECTED: {len(threats_detected)}\n"
                             if critical_threats:
-                                analysis_data += f"🔴 CRITICAL THREATS: {len(critical_threats)} (Immediate action required!)\n"
+                                analysis_data += f"CRITICAL THREATS: {len(critical_threats)} (Immediate action required)\n"
                             analysis_data += f"{'='*70}\n"
                         
                         analysis_data += "\n" + "=" * 70 + "\n"
@@ -689,7 +689,7 @@ class MCPAgent:
                             isolation_results = []
                             if devices_to_isolate:
                                 if not self.quiet:
-                                    print(f"\n🚨 AUTO-ISOLATING {len(devices_to_isolate)} malicious device(s) using MCP tool...")
+                                    print(f"\nAUTO-ISOLATING {len(devices_to_isolate)} malicious device(s) using MCP tool...")
                                 
                                 for malicious_ip in devices_to_isolate:
                                     try:
@@ -714,7 +714,7 @@ class MCPAgent:
                                         
                                         if container_found:
                                             # Use MCP tool to isolate device
-                                            isolation_msg = f"🚨 Calling MCP tool: move_device_to_honeypot({container_found}, 'DoS Attack Detected')"
+                                            isolation_msg = f"Calling MCP tool: move_device_to_honeypot({container_found}, 'DoS Attack Detected')"
                                             if not self.quiet:
                                                 print(isolation_msg)
                                             
@@ -727,27 +727,27 @@ class MCPAgent:
                                                 {"device_id": device_id, "reason": f"DoS Attack from {malicious_ip}"}
                                             )
                                             
-                                            isolation_results.append(f"✅ MCP Tool Result: {mcp_result}")
+                                            isolation_results.append(f"[SUCCESS] MCP Tool: {mcp_result}")
                                         else:
-                                            isolation_results.append(f"⚠️ Container not found for IP {malicious_ip}")
+                                            isolation_results.append(f"[WARNING] Container not found for IP {malicious_ip}")
                                     
                                     except Exception as iso_error:
-                                        isolation_results.append(f"❌ Failed to isolate {malicious_ip}: {str(iso_error)}")
+                                        isolation_results.append(f"[ERROR] Failed to isolate {malicious_ip}: {str(iso_error)}")
                             
                             # Add threat summary at top
                             if threats_detected:
-                                threat_summary = " " + "=" * 68 + "\n"
-                                threat_summary += " ⚠️  SECURITY ALERT: ACTIVE ATTACK DETECTED! ⚠️  \n"
-                                threat_summary += " " + "=" * 68 + "\n"
+                                threat_summary = "=" * 70 + "\n"
+                                threat_summary += "SECURITY ALERT: ACTIVE ATTACK DETECTED\n"
+                                threat_summary += "=" * 70 + "\n"
                                 for threat in threats_detected:
-                                    threat_summary += f"   💀 {threat}\n"
-                                threat_summary += " " + "=" * 68 + "\n\n"
+                                    threat_summary += f"  {threat}\n"
+                                threat_summary += "=" * 70 + "\n\n"
                                 
                                 # Add isolation results if any
                                 if isolation_results:
-                                    threat_summary += "🛡️ AUTO-ISOLATION ACTIONS TAKEN:\n"
+                                    threat_summary += "AUTO-ISOLATION ACTIONS TAKEN:\n"
                                     for result in isolation_results:
-                                        threat_summary += f"   {result}\n"
+                                        threat_summary += f"  {result}\n"
                                     threat_summary += "\n"
                                 
                                 return f"{threat_summary}🤖 CYBERSECURITY ANALYST REPORT:\n\n{ai_summary}\n\n📊 RAW TRAFFIC DATA:\n{analysis_data}"
