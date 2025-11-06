@@ -2010,38 +2010,60 @@ def get_network_map():
 
 # ==================== MCP AGENT ROUTES ====================
 
-# Global agent instance
-mcp_agent_process = None
-mcp_agent_active = False
-
 @app.route('/api/agent/status')
 def get_agent_status():
     """Get MCP agent status"""
-    global mcp_agent_active
-    
-    # Get API key info (masked for security)
-    api_key = os.getenv('ANTHROPIC_API_KEY')
-    key_info = {
-        'configured': bool(api_key),
-        'key_preview': f"{api_key[:20]}...{api_key[-10:]}" if api_key and len(api_key) > 30 else 'Not set',
-        'length': len(api_key) if api_key else 0
-    }
-    
-    return jsonify({
-        'success': True,
-        'active': mcp_agent_active,
-        'available_tools': [
-            'analyze_traffic',
-            'list_devices',
-            'reroute_to_honeypot'
-        ],
-        'api_key_info': key_info,
-        'base_url': os.getenv('ANTHROPIC_BASE_URL', 'Not set')
-    })
+    try:
+        # Get API key info (masked for security)
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        key_info = {
+            'configured': bool(api_key),
+            'key_preview': f"{api_key[:20]}...{api_key[-10:]}" if api_key and len(api_key) > 30 else 'Not set',
+            'length': len(api_key) if api_key else 0
+        }
+        
+        # Check if agent script exists
+        agent_script = os.path.join(BASE_DIR, 'mcp_agent', 'client', 'agent.py')
+        agent_available = os.path.exists(agent_script)
+        
+        # Check if MCP server exists
+        server_script = os.path.join(BASE_DIR, 'mcp_agent', 'server', 'server.py')
+        server_available = os.path.exists(server_script)
+        
+        return jsonify({
+            'success': True,
+            'active': agent_available and server_available and bool(api_key),
+            'agent_available': agent_available,
+            'server_available': server_available,
+            'api_key_info': key_info,
+            'model': 'glm-4.5',
+            'execution_mode': 'subprocess',  # Each query runs in fresh process
+            'features': {
+                'multi_turn': True,
+                'tool_calling': True,
+                'planning': True,
+                'todo_tracking': True,
+                'max_iterations': 100
+            },
+            'available_tools': [
+                'read_file', 'write_file', 'append_file', 'create_directory', 
+                'list_directory', 'delete_file', 'file_exists',
+                'run_command', 'run_batch_file', 'run_powershell',
+                'wsl_command', 'wsl_bash_script', 'wsl_read_file', 'wsl_write_file',
+                'docker_command', 'get_env_variable', 'set_env_variable',
+                'analyze_traffic', 'move_device_to_honeypot'
+            ]
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'active': False
+        })
 
 @app.route('/api/agent/query', methods=['POST'])
 def agent_query():
-    """Forward ALL user queries to MCP Agent - Dashboard is just a bridge"""
+    """Process query through MCP Agent with multi-turn conversation support"""
     data = request.get_json()
     query = data.get('query', '').strip()
     
@@ -2052,76 +2074,145 @@ def agent_query():
         })
     
     try:
-        # Forward query to MCP agent via query_agent.py (CLI wrapper)
-        mcp_client_path = os.path.join(BASE_DIR, 'mcp_agent', 'query_agent.py')
-        
-        if not os.path.exists(mcp_client_path):
-            return jsonify({
-                'success': False,
-                'error': 'MCP Agent not found. Please ensure mcp_agent/query_agent.py exists.'
-            })
-        
-        # Use virtual environment's Python (E:\nos\.venv\Scripts\python.exe)
+        # Run agent query in a completely separate process to avoid event loop conflicts
+        import sys
+        agent_script = os.path.join(BASE_DIR, 'mcp_agent', 'client', 'agent.py')
         venv_python = r'E:\nos\.venv\Scripts\python.exe'
-        
-        # Fallback to system python if venv not found
         python_executable = venv_python if os.path.exists(venv_python) else 'python'
         
-        # Set UTF-8 environment for subprocess to handle Unicode characters
+        # Set UTF-8 environment
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
         
-        # Run MCP agent with the user's query
+        # Run agent as subprocess (each query gets fresh event loop)
         result = subprocess.run(
-            [python_executable, mcp_client_path, query],
+            [python_executable, agent_script, query],
             capture_output=True,
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=60,
-            cwd=os.path.join(BASE_DIR, 'mcp_agent'),
+            timeout=120,
+            cwd=os.path.join(BASE_DIR, 'mcp_agent', 'client'),
             env=env
         )
         
         if result.returncode == 0:
             response_text = result.stdout.strip()
+            
+            # Try to extract just the agent response (skip debug output)
+            lines = response_text.split('\n')
+            # Look for "Agent:" prefix or clean response
+            agent_lines = []
+            capture = False
+            for line in lines:
+                if line.startswith('Agent:'):
+                    capture = True
+                    agent_lines.append(line[6:].strip())  # Remove "Agent:" prefix
+                elif capture and not line.startswith('🔧') and not line.startswith('✓'):
+                    agent_lines.append(line)
+            
+            final_response = '\n'.join(agent_lines) if agent_lines else response_text
+            
             return jsonify({
                 'success': True,
-                'response': response_text,
-                'source': 'MCP Agent'
+                'response': final_response,
+                'source': 'MCP Agent',
+                'full_output': response_text  # Include full output for debugging
             })
         else:
             error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
             return jsonify({
                 'success': False,
-                'error': f'MCP Agent error: {error_msg}',
+                'error': f'Agent error: {error_msg}',
                 'returncode': result.returncode
             })
-            
+        
     except subprocess.TimeoutExpired:
         return jsonify({
             'success': False,
-            'error': 'MCP Agent timeout (60s). Query took too long to process.'
+            'error': 'Query timeout (120s). The agent is still processing.'
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': f'Dashboard error: {str(e)}',
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        })
+
+@app.route('/api/agent/clear', methods=['POST'])
+def agent_clear_history():
+    """Clear agent conversation history - Not applicable in subprocess mode"""
+    return jsonify({
+        'success': True,
+        'message': 'Each query runs in a fresh subprocess, so conversation history is already isolated per query'
+    })
+
+@app.route('/api/agent/stats')
+def agent_stats():
+    """Get detailed agent statistics - Not applicable in subprocess mode"""
+    try:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        
+        return jsonify({
+            'success': True,
+            'execution_mode': 'subprocess',
+            'note': 'Each query runs independently in a subprocess with fresh state',
+            'api_configured': bool(api_key),
+            'available_tools': 19,
+            'features': {
+                'multi_turn_per_query': True,
+                'persistent_history': False,
+                'max_iterations': 100
+            }
         })
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': f'Dashboard error: {str(e)}',
-            'error_type': type(e).__name__
+            'error': str(e)
         })
 
 @app.route('/api/agent/test-key', methods=['POST'])
 def test_anthropic_key():
-    """DISABLED - API testing removed. Dashboard only forwards to MCP Agent."""
-    return jsonify({
-        'success': False,
-        'error': 'API test endpoint disabled.',
-        'message': 'Dashboard only forwards queries to MCP Agent. Use the chat interface instead.'
-    })
+    """Test if Anthropic API key is valid"""
+    try:
+        from anthropic import Anthropic
+        
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'error': 'ANTHROPIC_API_KEY not configured'
+            })
+        
+        # Try to create client and make a simple API call
+        client = Anthropic(api_key=api_key)
+        
+        # Test with a minimal message
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "Hi"}]
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'API key is valid',
+            'model': 'claude-3-5-sonnet-20241022',
+            'test_response': response.content[0].text if response.content else 'OK'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'API key test failed: {str(e)}',
+            'error_type': type(e).__name__
+        })
 
 @app.route('/api/agent/reroute', methods=['POST'])
 def agent_reroute_to_beelzebub():
-    """Reroute device to Beelzebub honeypot via agent tool"""
+    """Reroute device to Beelzebub honeypot via agent MCP tool"""
     data = request.get_json()
     device_ip = data.get('device_ip', '').strip()
     
@@ -2255,11 +2346,23 @@ def agent_reroute_to_beelzebub():
 
 if __name__ == '__main__':
     clear_old_data()  # Clear old data on startup
+    print("=" * 80)
     print("🚀 Network Security Dashboard Starting...")
+    print("=" * 80)
     print("📊 Dashboard URL: http://localhost:5100")
     print("🔧 Control your entire network security setup from the web UI")
     print("📡 Device data receiver enabled on port 5100")
-    print("🤖 MCP AI Agent integrated - chat available in dashboard")
+    print("=" * 80)
+    print("🤖 MCP AI Agent Features:")
+    print("   ✓ Multi-turn conversations with Claude 3.5 Sonnet")
+    print("   ✓ 19 MCP tools for network security operations")
+    print("   ✓ Automatic planning and TODO tracking")
+    print("   ✓ Subprocess execution (fresh event loop per query)")
+    print("   ✓ Up to 100 iterations per query")
+    print("   ✓ Real-time token usage monitoring")
+    print("   ✓ Integrated with FastMCP server")
+    print("=" * 80)
     print("⚠️  Note: Network monitor Flask API is on port 5000")
+    print("=" * 80)
     # Use port 5100 to avoid conflict with network-monitor on port 5000
     app.run(host='0.0.0.0', port=5100, debug=True)

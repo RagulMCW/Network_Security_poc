@@ -332,7 +332,7 @@ When the user asks a question:
         return prompt
 
     async def process_query(self, user_input: str) -> str:
-        """Process user query with intelligent planning."""
+        """Process user query with intelligent planning and multi-turn tool execution."""
         # Add to conversation history
         self.conversation_history.append({
             "role": "user",
@@ -350,100 +350,169 @@ When the user asks a question:
         for msg in self.conversation_history[-20:]:
             messages.append(msg)
         
+        # Build tool definitions once
+        tool_definitions = []
+        for tool in self.tools:
+            tool_def = {
+                "name": tool.name,
+                "description": getattr(tool, 'description', ''),
+            }
+            if hasattr(tool, 'inputSchema'):
+                tool_def["input_schema"] = tool.inputSchema
+            tool_definitions.append(tool_def)
+        
+        if not self.quiet and tool_definitions:
+            print(f"\n🔧 DEBUG: Sending {len(tool_definitions)} tool definitions to Claude")
+            print(f"🔧 DEBUG: Tool names: {[t['name'] for t in tool_definitions[:5]]}")
+        
         try:
-            # Call Claude with tool definitions
-            tool_definitions = []
-            for tool in self.tools:
-                tool_def = {
-                    "name": tool.name,
-                    "description": getattr(tool, 'description', ''),
-                }
-                if hasattr(tool, 'inputSchema'):
-                    tool_def["input_schema"] = tool.inputSchema
-                tool_definitions.append(tool_def)
+            # Multi-turn conversation loop
+            iteration = 0
+            max_iterations = 100
+            final_response_text = ""
             
-            response = self.anthropic_client.messages.create(
-                model="glm-4.5",
-                max_tokens=8000,
-                system=self._build_system_prompt(),
-                messages=messages,
-                tools=tool_definitions if tool_definitions else None
-            )
-            
-            # Update token usage
-            if hasattr(response, 'usage'):
-                self.context_manager.update_usage(
-                    response.usage.input_tokens,
-                    response.usage.output_tokens
+            while iteration < max_iterations:
+                iteration += 1
+                
+                if not self.quiet:
+                    print(f"\n🔄 Iteration {iteration}/{max_iterations}")
+                
+                # Call Claude
+                response = self.anthropic_client.messages.create(
+                    model="glm-4.5",  # Fixed: using correct Claude model
+                    max_tokens=4096,
+                    system=self._build_system_prompt(),
+                    messages=messages,
+                    tools=tool_definitions if tool_definitions else None
                 )
-                if not self.quiet:
-                    print(f"\n{self.context_manager.get_status_display()}")
-            
-            # Process response
-            response_text = ""
-            tool_calls = []
-            
-            for block in response.content:
-                if hasattr(block, 'text'):
-                    response_text += block.text
-                elif hasattr(block, 'type') and block.type == 'tool_use':
-                    tool_calls.append(block)
-            
-            # Parse plan if present
-            plan_steps, todos = self._parse_plan_from_response(response_text)
-            if plan_steps:
-                self.current_plan = plan_steps
-                if not self.quiet:
-                    print("\n📝 Plan:")
-                    for i, step in enumerate(plan_steps, 1):
-                        print(f"   {i}. {step}")
-            
-            if todos:
-                for title, desc in todos:
-                    self._add_todo(title, desc)
-                self._display_todos()
-            
-            # Execute tool calls
-            if tool_calls:
-                for i, tool_call in enumerate(tool_calls):
-                    todo_id = i + 1
-                    if todo_id <= len(self.todos):
-                        self._update_todo_status(todo_id, "in-progress")
-                    
-                    if not self.quiet:
-                        print(f"\n🔧 Tool Call #{i+1}:")
-                        print(f"   Name: {tool_call.name}")
-                        print(f"   ID: {tool_call.id if hasattr(tool_call, 'id') else 'N/A'}")
-                        if hasattr(tool_call, 'input'):
-                            print(f"   Input: {json.dumps(tool_call.input, indent=6)}")
-                    
-                    tool_result = await self.call_mcp_tool(
-                        tool_call.name,
-                        tool_call.input if hasattr(tool_call, 'input') else {}
+                
+                # Update token usage
+                if hasattr(response, 'usage'):
+                    self.context_manager.update_usage(
+                        response.usage.input_tokens,
+                        response.usage.output_tokens
                     )
-                    
                     if not self.quiet:
-                        print(f"✓ Result preview: {tool_result[:200]}...")
-                    
-                    response_text += f"\n\nTool Result: {tool_result}"
-                    
-                    if todo_id <= len(self.todos):
-                        self._update_todo_status(todo_id, "completed")
-            else:
+                        print(f"{self.context_manager.get_status_display()}")
+                
+                # Check stop reason
+                stop_reason = response.stop_reason
                 if not self.quiet:
-                    print(f"\n🔧 DEBUG: No tool calls requested by Claude")
+                    print(f"🔧 DEBUG: Stop reason: {stop_reason}")
+                
+                # Process response content
+                response_text = ""
+                tool_calls = []
+                
+                for block in response.content:
+                    if hasattr(block, 'text'):
+                        response_text += block.text
+                    elif hasattr(block, 'type') and block.type == 'tool_use':
+                        tool_calls.append(block)
+                
+                # Display text response if any
+                if response_text and not self.quiet:
+                    print(f"\n💬 Claude says: {response_text[:200]}{'...' if len(response_text) > 200 else ''}")
+                
+                # Parse plan on first iteration
+                if iteration == 1:
+                    plan_steps, todos = self._parse_plan_from_response(response_text)
+                    if plan_steps:
+                        self.current_plan = plan_steps
+                        if not self.quiet:
+                            print("\n📝 Plan:")
+                            for i, step in enumerate(plan_steps, 1):
+                                print(f"   {i}. {step}")
+                    
+                    if todos:
+                        for title, desc in todos:
+                            self._add_todo(title, desc)
+                        self._display_todos()
+                
+                # Save text for final response
+                final_response_text = response_text
+                
+                # If no tool calls, we're done
+                if stop_reason == "end_turn" or not tool_calls:
+                    if not self.quiet:
+                        print(f"\n✅ Conversation complete (no more tool calls)")
+                    break
+                
+                # Execute tool calls
+                if tool_calls:
+                    if not self.quiet:
+                        print(f"\n🔧 DEBUG: Claude requested {len(tool_calls)} tool call(s)")
+                    
+                    # Add assistant message with tool calls
+                    assistant_message = {
+                        "role": "assistant",
+                        "content": response.content
+                    }
+                    messages.append(assistant_message)
+                    
+                    # Execute each tool and collect results
+                    tool_results = []
+                    
+                    for i, tool_call in enumerate(tool_calls):
+                        todo_id = i + 1
+                        if todo_id <= len(self.todos):
+                            self._update_todo_status(todo_id, "in-progress")
+                        
+                        if not self.quiet:
+                            print(f"\n🔧 Tool Call #{i+1}:")
+                            print(f"   Name: {tool_call.name}")
+                            print(f"   ID: {tool_call.id if hasattr(tool_call, 'id') else 'N/A'}")
+                            if hasattr(tool_call, 'input'):
+                                print(f"   Input: {json.dumps(tool_call.input, indent=6)}")
+                        
+                        # Call the tool
+                        tool_result_text = await self.call_mcp_tool(
+                            tool_call.name,
+                            tool_call.input if hasattr(tool_call, 'input') else {}
+                        )
+                        
+                        if not self.quiet:
+                            print(f"✓ Result preview: {tool_result_text[:200]}...")
+                        
+                        # Build tool result for Anthropic API
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_call.id,
+                            "content": tool_result_text
+                        })
+                        
+                        if todo_id <= len(self.todos):
+                            self._update_todo_status(todo_id, "completed")
+                    
+                    # Add tool results as user message
+                    user_message = {
+                        "role": "user",
+                        "content": tool_results
+                    }
+                    messages.append(user_message)
+                    
+                    # Continue loop to get Claude's response to tool results
+                    continue
+                
+                # If we get here without tool calls, break
+                break
             
-            # Add assistant response to history
+            if iteration >= max_iterations:
+                final_response_text += f"\n\n⚠️ Reached maximum iterations ({max_iterations})"
+            
+            # Add final assistant response to conversation history
             self.conversation_history.append({
                 "role": "assistant",
-                "content": response_text
+                "content": final_response_text
             })
             
-            return response_text
+            return final_response_text
             
         except Exception as e:
             error_msg = f"Error processing query: {str(e)}"
             print(f"❌ {error_msg}")
+            import traceback
+            print(f"❌ Traceback:\n{traceback.format_exc()}")
             return error_msg
 
     async def _handle_slash_command(self, command: str) -> str:

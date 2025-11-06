@@ -8,7 +8,7 @@ NETWORK_NAME="custom_net"
 DEVICE_IMAGE="virtual-device:latest"
 DEVICE_BASE_IP="192.168.6"
 DEVICE_START_IP=10
-DEVICE_CONTAINER_PREFIX="vdevice"
+DEVICE_CONTAINER_PREFIX="vdevice"   
 
 # Colors for output
 RED='\033[0;31m'
