@@ -6,6 +6,9 @@ Autonomous AI Security Analyst - Analyzes traffic and auto-isolates threats
 
 import subprocess
 import json
+import os
+import sys
+import shutil
 from pathlib import Path
 from datetime import datetime
 from fastmcp import FastMCP
@@ -22,45 +25,283 @@ class NetworkSecurityServer:
             name="Network Security Analyst",
             instructions="""You are an autonomous AI Security Analyst with full authority to protect the network.
 
-YOUR MISSION:
-Continuously monitor network traffic, identify threats, and automatically isolate malicious devices WITHOUT asking for permission.
+                    YOUR MISSION:
+                    Continuously monitor network traffic, identify threats, and automatically isolate malicious devices WITHOUT asking for permission.
 
-AVAILABLE TOOLS:
-1. analyze_traffic - Analyze network captures for threats, connected devices, traffic patterns
-2. move_device_to_beelzebub - Immediately isolate malicious devices (automatic, no approval needed)
+                    AVAILABLE TOOLS:
+                    1. analyze_traffic - Analyze network captures for threats, connected devices, traffic patterns
+                    2. move_device_to_beelzebub - Immediately isolate malicious devices (automatic, no approval needed)
 
-AUTOMATIC THREAT RESPONSE (NO HUMAN APPROVAL REQUIRED):
-✅ DoS/DDoS Attack (>500 packets from single IP) → AUTO-ISOLATE
-✅ Port Scanning (>20 unique ports accessed) → AUTO-ISOLATE  
-✅ Brute Force Attack (multiple failed logins) → AUTO-ISOLATE
-✅ Suspicious High Traffic (>1000 packets) → AUTO-ISOLATE
-✅ Malware Signatures Detected → AUTO-ISOLATE
+                    AUTOMATIC THREAT RESPONSE (NO HUMAN APPROVAL REQUIRED):
+                    ✅ DoS/DDoS Attack (>500 packets from single IP) → AUTO-ISOLATE
+                    ✅ Port Scanning (>20 unique ports accessed) → AUTO-ISOLATE  
+                    ✅ Brute Force Attack (multiple failed logins) → AUTO-ISOLATE
+                    ✅ Suspicious High Traffic (>1000 packets) → AUTO-ISOLATE
+                    ✅ Malware Signatures Detected → AUTO-ISOLATE
 
-WORKFLOW FOR EVERY USER QUERY:
-1. ALWAYS call analyze_traffic first to get current network state
-2. Parse the analysis output for:
-   - Connected devices and their IPs
-   - Traffic statistics (packet counts, protocols)
-   - Any anomalies or attack patterns
-3. If threats detected → IMMEDIATELY call move_device_to_beelzebub (don't ask, just do it)
-4. Provide comprehensive summary:
-   - Network status overview
-   - Connected devices (count, IPs, status)
-   - Security threats found (if any)
-   - Actions taken (isolations performed)
+                    WORKFLOW FOR EVERY USER QUERY:
+                    1. ALWAYS call analyze_traffic first to get current network state
+                    2. Parse the analysis output for:
+                    - Connected devices and their IPs
+                    - Traffic statistics (packet counts, protocols)
+                    - Any anomalies or attack patterns
+                    3. If threats detected → IMMEDIATELY call move_device_to_beelzebub (don't ask, just do it)
+                    4. Provide comprehensive summary:
+                    - Network status overview
+                    - Connected devices (count, IPs, status)
+                    - Security threats found (if any)
+                    - Actions taken (isolations performed)
 
-RESPONSE FORMAT:
-Always provide:
-- 🔍 Network Overview (devices connected, total traffic)
-- 📊 Traffic Statistics (protocols, top IPs)
-- 🚨 Threats Detected (if any, with severity)
-- 🛡️ Actions Taken (devices isolated automatically)
+                    RESPONSE FORMAT:
+                    Always provide:
+                    - 🔍 Network Overview (devices connected, total traffic)
+                    - 📊 Traffic Statistics (protocols, top IPs)
+                    - 🚨 Threats Detected (if any, with severity)
+                    - 🛡️ Actions Taken (devices isolated automatically)
 
-Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permission."""
-        )
+                    Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permission."""
+                )
         self._register_tools()
     
     def _register_tools(self):
+        
+        # =======================================
+        # FILESYSTEM TOOLS
+        # =======================================
+        
+        @self.mcp.tool
+        def read_file(path: str) -> str:
+            """Read the contents of a file from the system.
+            
+            Args:
+                path: Absolute file path (e.g., 'C:\\logs\\analysis.txt')
+            
+            Returns:
+                File contents as string, or error message
+            """
+            return self._read_file(path)
+        
+        @self.mcp.tool
+        def write_file(path: str, content: str) -> str:
+            """Write content to a file on the system.
+            
+            Args:
+                path: Absolute file path (e.g., 'C:\\logs\\output.txt')
+                content: Content to write to the file
+            
+            Returns:
+                Success/failure message
+            """
+            return self._write_file(path, content)
+        
+        @self.mcp.tool
+        def append_file(path: str, content: str) -> str:
+            """Append content to a file on the system.
+            
+            Args:
+                path: Absolute file path
+                content: Content to append
+            
+            Returns:
+                Success/failure message
+            """
+            return self._append_file(path, content)
+        
+        @self.mcp.tool
+        def create_directory(path: str) -> str:
+            """Create a directory (and parent directories if needed).
+            
+            Args:
+                path: Absolute directory path (e.g., 'C:\\logs\\network\\captures')
+            
+            Returns:
+                Success/failure message
+            """
+            return self._create_directory(path)
+        
+        @self.mcp.tool
+        def list_directory(path: str) -> str:
+            """List files and folders in a directory.
+            
+            Args:
+                path: Absolute directory path
+            
+            Returns:
+                Formatted list of files/folders with sizes
+            """
+            return self._list_directory(path)
+        
+        @self.mcp.tool
+        def delete_file(path: str) -> str:
+            """Delete a file from the system.
+            
+            Args:
+                path: Absolute file path
+            
+            Returns:
+                Success/failure message
+            """
+            return self._delete_file(path)
+        
+        @self.mcp.tool
+        def file_exists(path: str) -> str:
+            """Check if a file exists on the system.
+            
+            Args:
+                path: Absolute file path
+            
+            Returns:
+                'exists' or 'does_not_exist'
+            """
+            return self._file_exists(path)
+        
+        # =======================================
+        # PROCESS / TERMINAL TOOLS
+        # =======================================
+        
+        @self.mcp.tool
+        def run_command(command: str, timeout: int = 30) -> str:
+            """Run a Windows terminal command and get output.
+            
+            Args:
+                command: Command to run (e.g., 'dir C:\\', 'ipconfig', 'docker ps')
+                timeout: Maximum seconds to wait for command (default: 30)
+            
+            Returns:
+                Command output and return code
+            """
+            return self._run_command(command, timeout)
+        
+        @self.mcp.tool
+        def run_batch_file(path: str, args: str = "", timeout: int = 60) -> str:
+            """Run a batch file (.bat) and capture output.
+            
+            Args:
+                path: Absolute path to .bat file
+                args: Arguments to pass to batch file
+                timeout: Maximum seconds to wait
+            
+            Returns:
+                Batch file output and exit code
+            """
+            return self._run_batch_file(path, args, timeout)
+        
+        @self.mcp.tool
+        def run_powershell(command: str, timeout: int = 30) -> str:
+            """Run a PowerShell command.
+            
+            Args:
+                command: PowerShell command
+                timeout: Maximum seconds to wait
+            
+            Returns:
+                Command output
+            """
+            return self._run_powershell(command, timeout)
+        
+        # =======================================
+        # WSL & LINUX TOOLS (with SUDO support)
+        # =======================================
+        
+        @self.mcp.tool
+        def wsl_command(command: str, use_sudo: bool = False, timeout: int = 30) -> str:
+            """Run a command inside WSL (Windows Subsystem for Linux).
+            
+            Args:
+                command: Linux/bash command to run
+                use_sudo: If True, run with sudo privileges
+                timeout: Maximum seconds to wait
+            
+            Returns:
+                Command output from WSL
+            """
+            return self._wsl_command(command, use_sudo, timeout)
+        
+        @self.mcp.tool
+        def wsl_bash_script(script: str, use_sudo: bool = False, timeout: int = 60) -> str:
+            """Run a bash script inside WSL with full support for complex commands.
+            
+            Args:
+                script: Bash script content (can be multiline)
+                use_sudo: If True, run with sudo privileges
+                timeout: Maximum seconds to wait
+            
+            Returns:
+                Script output
+            """
+            return self._wsl_bash_script(script, use_sudo, timeout)
+        
+        @self.mcp.tool
+        def wsl_read_file(path: str) -> str:
+            """Read a file from WSL/Linux filesystem.
+            
+            Args:
+                path: Linux file path (e.g., '/home/user/file.txt')
+            
+            Returns:
+                File contents
+            """
+            return self._wsl_read_file(path)
+        
+        @self.mcp.tool
+        def wsl_write_file(path: str, content: str) -> str:
+            """Write to a file in WSL/Linux with sudo if needed.
+            
+            Args:
+                path: Linux file path
+                content: Content to write
+            
+            Returns:
+                Success/failure message
+            """
+            return self._wsl_write_file(path, content)
+        
+        @self.mcp.tool
+        def docker_command(command: str, use_sudo: bool = False, timeout: int = 30) -> str:
+            """Execute Docker commands inside WSL.
+            
+            Args:
+                command: Docker command (e.g., 'ps -a', 'inspect container_name')
+                use_sudo: If True, run docker with sudo
+                timeout: Maximum seconds to wait
+            
+            Returns:
+                Docker command output
+            """
+            return self._docker_command(command, use_sudo, timeout)
+        
+        # =======================================
+        # ENVIRONMENT VARIABLES
+        # =======================================
+        
+        @self.mcp.tool
+        def get_env_variable(name: str) -> str:
+            """Get the value of an environment variable.
+            
+            Args:
+                name: Variable name (e.g., 'PATH', 'DOCKER_HOST')
+            
+            Returns:
+                Variable value or 'not set'
+            """
+            return self._get_env_variable(name)
+        
+        @self.mcp.tool
+        def set_env_variable(name: str, value: str) -> str:
+            """Set an environment variable (in current process).
+            
+            Args:
+                name: Variable name
+                value: Variable value
+            
+            Returns:
+                Success message
+            """
+            return self._set_env_variable(name, value)
+        
+        # =======================================
+        # NETWORK SECURITY TOOLS
+        # =======================================
         
         @self.mcp.tool
         def analyze_traffic() -> str:
@@ -89,7 +330,6 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
             """
             return self._move_device_to_beelzebub(device_id, reason)
 
-    
     def _run_analyze_bat(self) -> str:
         """Run analyze_auto.bat and return terminal output"""
         try:
@@ -117,6 +357,410 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
             return "ERROR: Analysis timeout"
         except Exception as e:
             return f"ERROR: {str(e)}"
+    
+    # =======================================
+    # FILESYSTEM IMPLEMENTATIONS
+    # =======================================
+    
+    def _read_file(self, path: str) -> str:
+        """Read file contents"""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return f"ERROR: File not found: {path}"
+            if not p.is_file():
+                return f"ERROR: Path is not a file: {path}"
+            
+            with open(p, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            return content if content else f"[Empty file: {path}]"
+        except Exception as e:
+            return f"ERROR reading file: {str(e)}"
+    
+    def _write_file(self, path: str, content: str) -> str:
+        """Write content to file"""
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return f"✅ File written successfully: {path}"
+        except Exception as e:
+            return f"ERROR writing file: {str(e)}"
+    
+    def _append_file(self, path: str, content: str) -> str:
+        """Append content to file"""
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(p, 'a', encoding='utf-8') as f:
+                f.write(content)
+            
+            return f"✅ Content appended successfully: {path}"
+        except Exception as e:
+            return f"ERROR appending to file: {str(e)}"
+    
+    def _create_directory(self, path: str) -> str:
+        """Create directory"""
+        try:
+            p = Path(path)
+            p.mkdir(parents=True, exist_ok=True)
+            return f"✅ Directory created/exists: {path}"
+        except Exception as e:
+            return f"ERROR creating directory: {str(e)}"
+    
+    def _list_directory(self, path: str) -> str:
+        """List directory contents"""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return f"ERROR: Directory not found: {path}"
+            if not p.is_dir():
+                return f"ERROR: Path is not a directory: {path}"
+            
+            items = []
+            items.append(f"📁 Directory: {path}\n")
+            
+            try:
+                entries = sorted(p.iterdir())
+            except PermissionError:
+                return f"ERROR: Permission denied accessing: {path}"
+            
+            if not entries:
+                items.append("  [empty directory]")
+            else:
+                for entry in entries:
+                    try:
+                        if entry.is_dir():
+                            items.append(f"  📂 {entry.name}/")
+                        else:
+                            size = entry.stat().st_size
+                            if size < 1024:
+                                size_str = f"{size}B"
+                            elif size < 1024*1024:
+                                size_str = f"{size/1024:.1f}KB"
+                            else:
+                                size_str = f"{size/(1024*1024):.1f}MB"
+                            items.append(f"  📄 {entry.name} ({size_str})")
+                    except Exception as e:
+                        items.append(f"  ⚠️ {entry.name} [error reading]")
+            
+            return "\n".join(items)
+        except Exception as e:
+            return f"ERROR listing directory: {str(e)}"
+    
+    def _delete_file(self, path: str) -> str:
+        """Delete a file"""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return f"ERROR: File not found: {path}"
+            if not p.is_file():
+                return f"ERROR: Path is not a file: {path}"
+            
+            p.unlink()
+            return f"✅ File deleted: {path}"
+        except Exception as e:
+            return f"ERROR deleting file: {str(e)}"
+    
+    def _file_exists(self, path: str) -> str:
+        """Check if file exists"""
+        try:
+            p = Path(path)
+            if p.exists():
+                if p.is_file():
+                    return f"exists (file)"
+                elif p.is_dir():
+                    return f"exists (directory)"
+                else:
+                    return f"exists (other)"
+            else:
+                return f"does_not_exist"
+        except Exception as e:
+            return f"ERROR checking file: {str(e)}"
+    
+    # =======================================
+    # PROCESS / TERMINAL IMPLEMENTATIONS
+    # =======================================
+    
+    def _run_command(self, command: str, timeout: int = 30) -> str:
+        """Run Windows terminal command"""
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = f"Command: {command}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: Command timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running command: {str(e)}"
+    
+    def _run_batch_file(self, path: str, args: str = "", timeout: int = 60) -> str:
+        """Run batch file"""
+        try:
+            p = Path(path)
+            if not p.exists():
+                return f"ERROR: Batch file not found: {path}"
+            
+            cmd = f'"{str(p)}" {args}'.strip()
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(p.parent)
+            )
+            
+            output = f"Batch File: {path}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: Batch file timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running batch file: {str(e)}"
+    
+    def _run_powershell(self, command: str, timeout: int = 30) -> str:
+        """Run PowerShell command"""
+        try:
+            # Escape quotes for PowerShell
+            ps_cmd = f'powershell.exe -NoProfile -Command "{command}"'
+            
+            result = subprocess.run(
+                ps_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = f"PowerShell Command: {command}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: PowerShell timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running PowerShell: {str(e)}"
+    
+    # =======================================
+    # WSL & LINUX IMPLEMENTATIONS (with SUDO)
+    # =======================================
+    
+    def _wsl_command(self, command: str, use_sudo: bool = False, timeout: int = 30) -> str:
+        """Run command in WSL"""
+        try:
+            sudo_password = os.getenv("WSL_SUDO_PASSWORD", "")
+            
+            if use_sudo:
+                if sudo_password:
+                    full_cmd = ['wsl', 'bash', '-c', f"echo {sudo_password} | sudo -S {command}"]
+                else:
+                    full_cmd = ['wsl', 'bash', '-c', f"sudo {command}"]
+            else:
+                full_cmd = ['wsl', 'bash', '-c', command]
+            
+            result = subprocess.run(
+                full_cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = f"WSL Command: {command}\n"
+            output += f"Sudo: {'Yes' if use_sudo else 'No'}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: WSL command timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running WSL command: {str(e)}"
+    
+    def _wsl_bash_script(self, script: str, use_sudo: bool = False, timeout: int = 60) -> str:
+        """Run bash script in WSL"""
+        try:
+            sudo_password = os.getenv("WSL_SUDO_PASSWORD", "")
+            
+            # Create bash script with heredoc
+            script_content = f"""cat > /tmp/mcp_script.sh << 'EOFSCRIPT'
+{script}
+EOFSCRIPT
+chmod +x /tmp/mcp_script.sh"""
+            
+            if use_sudo:
+                if sudo_password:
+                    bash_cmd = f"{script_content} && echo {sudo_password} | sudo -S bash /tmp/mcp_script.sh && rm /tmp/mcp_script.sh"
+                else:
+                    bash_cmd = f"{script_content} && sudo bash /tmp/mcp_script.sh && rm /tmp/mcp_script.sh"
+            else:
+                bash_cmd = f"{script_content} && bash /tmp/mcp_script.sh && rm /tmp/mcp_script.sh"
+            
+            full_cmd = ['wsl', 'bash', '-c', bash_cmd]
+            
+            result = subprocess.run(
+                full_cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = f"WSL Bash Script\n"
+            output += f"Sudo: {'Yes' if use_sudo else 'No'}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: Bash script timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running bash script: {str(e)}"
+    
+    def _wsl_read_file(self, path: str) -> str:
+        """Read file from WSL"""
+        try:
+            cmd = f'wsl cat "{path}"'
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                return result.stdout if result.stdout else "[Empty file]"
+            else:
+                return f"ERROR: {result.stderr}"
+        except Exception as e:
+            return f"ERROR reading WSL file: {str(e)}"
+    
+    def _wsl_write_file(self, path: str, content: str) -> str:
+        """Write file to WSL"""
+        try:
+            # Escape content for shell
+            content_escaped = content.replace("'", "'\\''")
+            
+            cmd = f"wsl bash -c \"echo '{content_escaped}' > '{path}'\""
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                return f"✅ File written to WSL: {path}"
+            else:
+                return f"ERROR: {result.stderr}"
+        except Exception as e:
+            return f"ERROR writing WSL file: {str(e)}"
+    
+    def _docker_command(self, command: str, use_sudo: bool = False, timeout: int = 30) -> str:
+        """Run Docker command in WSL"""
+        try:
+            sudo_password = os.getenv("WSL_SUDO_PASSWORD", "")
+            docker_cmd = f"docker {command}"
+            
+            if use_sudo:
+                if sudo_password:
+                    full_cmd = ['wsl', 'bash', '-c', f"echo {sudo_password} | sudo -S {docker_cmd}"]
+                else:
+                    full_cmd = ['wsl', 'bash', '-c', f"sudo {docker_cmd}"]
+            else:
+                full_cmd = ['wsl', 'bash', '-c', docker_cmd]
+            
+            result = subprocess.run(
+                full_cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            output = f"Docker Command: {command}\n"
+            output += f"Sudo: {'Yes' if use_sudo else 'No'}\n"
+            output += f"Exit Code: {result.returncode}\n"
+            output += f"{'='*60}\n"
+            
+            if result.stdout:
+                output += "OUTPUT:\n" + result.stdout
+            if result.stderr:
+                output += "ERRORS:\n" + result.stderr
+            
+            return output
+        except subprocess.TimeoutExpired:
+            return f"ERROR: Docker command timeout after {timeout}s"
+        except Exception as e:
+            return f"ERROR running Docker command: {str(e)}"
+    
+    # =======================================
+    # ENVIRONMENT VARIABLE IMPLEMENTATIONS
+    # =======================================
+    
+    def _get_env_variable(self, name: str) -> str:
+        """Get environment variable"""
+        try:
+            value = os.getenv(name)
+            if value is None:
+                return f"Environment variable '{name}' is not set"
+            return f"{name}={value}"
+        except Exception as e:
+            return f"ERROR getting environment variable: {str(e)}"
+    
+    def _set_env_variable(self, name: str, value: str) -> str:
+        """Set environment variable"""
+        try:
+            os.environ[name] = value
+            return f"✅ Environment variable set: {name}={value}"
+        except Exception as e:
+            return f"ERROR setting environment variable: {str(e)}"
+    
     
     def _move_device_to_beelzebub(self, device_id: str, reason: str) -> str:
         """Move device from custom_net to honeypot_net (Beelzebub)"""
@@ -289,9 +933,22 @@ Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permiss
     
     def run(self):
         """Run the FastMCP server."""
+        print("🔧 DEBUG: NetworkSecurityServer.run() called", file=sys.stderr)
+        print(f"🔧 DEBUG: Server name: {self.mcp.name}", file=sys.stderr)
+        
+        # Count registered tools
+        tools_count = len(self.mcp._tools) if hasattr(self.mcp, '_tools') else 0
+        print(f"🔧 DEBUG: Registered tools count: {tools_count}", file=sys.stderr)
+        
+        if hasattr(self.mcp, '_tools'):
+            print(f"🔧 DEBUG: Tool names: {list(self.mcp._tools.keys())[:5]}", file=sys.stderr)
+        
+        print("🔧 DEBUG: Starting mcp.run()...", file=sys.stderr)
         self.mcp.run()
 
 
 if __name__ == "__main__":
+    print("🔧 DEBUG: server.py __main__ starting", file=sys.stderr)
     server = NetworkSecurityServer()
+    print("🔧 DEBUG: NetworkSecurityServer created", file=sys.stderr)
     server.run()
