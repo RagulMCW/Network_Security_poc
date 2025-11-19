@@ -2,3 +2,11 @@
 {"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-10-29T05:36:11Z"}
 {"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-10-29T05:36:11Z"}
 {"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-10-29T05:36:11Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-11-18T06:16:52Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-11-18T06:16:52Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-11-18T06:16:52Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-11-18T06:16:52Z"}
+{"commands":0,"level":"info","msg":"Init service: Fake Admin Panel - phpMyAdmin Clone","port":":8080","time":"2025-11-19T04:35:38Z"}
+{"commands":12,"level":"info","msg":"GetInstance service ssh","port":":22","time":"2025-11-19T04:35:38Z"}
+{"banner":"8.0.29","level":"info","msg":"Init service tcp","port":":3306","time":"2025-11-19T04:35:38Z"}
+{"banner":"9.6.0","level":"info","msg":"Init service tcp","port":":5432","time":"2025-11-19T04:35:38Z"}

@@ -37,12 +37,12 @@ HONEYPOT_DIR = os.path.join(BASE_DIR, 'honey_pot')
 ATTACKERS_DIR = os.path.join(BASE_DIR, 'attackers', 'dos_attacker')
 
 # WSL paths (converted)
-WSL_NETWORK_DIR = '/mnt/e/nos/Network_Security_poc/network'
-WSL_DEVICES_DIR = '/mnt/e/nos/Network_Security_poc/devices'
-WSL_HONEYPOT_DIR = '/mnt/e/nos/Network_Security_poc/honey_pot'
-WSL_ATTACKERS_DIR = '/mnt/e/nos/Network_Security_poc/attackers/dos_attacker'
+WSL_NETWORK_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/network'
+WSL_DEVICES_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/devices'
+WSL_HONEYPOT_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/honey_pot'
+WSL_ATTACKERS_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/dos_attacker'
 
-def run_wsl_command(command):
+def run_wsl_command(command, timeout=30):
     """Execute WSL command and return output"""
     try:
         result = subprocess.run(
@@ -51,7 +51,7 @@ def run_wsl_command(command):
             text=True,
             encoding='utf-8',
             errors='replace',  # Replace problematic characters instead of crashing
-            timeout=30
+            timeout=timeout
         )
         return {
             'success': result.returncode == 0,
@@ -325,25 +325,37 @@ def create_device():
     data = request.json
     device_type = data.get('type', 'generic')  # iot_sensor, smartphone, laptop, camera, generic
     
-    # Get next device number
-    result = run_wsl_command('docker ps -a --filter name=device_ --format "{{.Names}}"')
+    # Ensure custom_net network exists
+    check_network = run_wsl_command('docker network inspect custom_net >/dev/null 2>&1')
+    if not check_network['success']:
+        print("Creating custom_net network...")
+        create_network = run_wsl_command('docker network create --driver bridge --subnet=192.168.6.0/24 --gateway=192.168.6.1 custom_net')
+        if not create_network['success']:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to create network',
+                'error': create_network['error']
+            })
+    
+    # Get next device number (use vdevice_ naming convention)
+    result = run_wsl_command('docker ps -a --filter name=vdevice_ --format "{{.Names}}"')
     existing_ids = []
     
     if result['success']:
         for line in result['output'].strip().split('\n'):
-            if line and 'device_' in line:
-                match = re.search(r'device_(\d+)', line)
+            if line and 'vdevice_' in line:
+                match = re.search(r'vdevice_(\d+)', line)
                 if match:
                     existing_ids.append(int(match.group(1)))
     
     next_id = max(existing_ids) + 1 if existing_ids else 1
-    device_name = f"device_{next_id}"
+    device_name = f"vdevice_{next_id:03d}"
     device_id = f"device_{next_id:03d}"
     
     # Build device image if not exists
     print(f"Building device image...")
-    build_cmd = f'cd /mnt/e/nos/Network_Security_poc/devices && docker build -t device-simulator .'
-    build_result = run_wsl_command(build_cmd)
+    build_cmd = f'cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/devices && docker build -t device-simulator .'
+    build_result = run_wsl_command(build_cmd, timeout=180)
     
     if not build_result['success']:
         return jsonify({
@@ -380,12 +392,9 @@ def create_device():
 def delete_device(device_id):
     """Delete a device container and clean up"""
     
-    # Try both naming conventions: vdevice_XXX and device_XXX
-    device_name = f"vdevice_{device_id}" if not device_id.startswith('device') else device_id
-    
-    # If device_id is just a number like "001", try vdevice_001
-    if device_id.isdigit() or (len(device_id) == 3 and device_id.isdigit()):
-        device_name = f"vdevice_{device_id}"
+    # device_id is the full container name (e.g., "vdevice_001" or "malware_attacker")
+    # Use it directly without adding prefixes
+    device_name = device_id
     
     # Stop container
     stop_result = run_wsl_command(f'docker stop {device_name}')
@@ -423,50 +432,78 @@ def cleanup_all():
     
     results = []
     
-    # 1. Stop ALL running containers
+    # 1. Stop ALL running containers (including dashboard will stop itself)
     print("🛑 Stopping all containers...")
     stop_result = run_wsl_command('docker stop $(docker ps -aq) 2>/dev/null || true')
     results.append(f"Stopped containers: {stop_result['output']}")
     
-    # 2. Remove ALL containers
+    # 2. Remove ALL containers (force remove)
     print("🗑️ Removing all containers...")
     rm_containers = run_wsl_command('docker rm -f $(docker ps -aq) 2>/dev/null || true')
     results.append(f"Removed containers: {rm_containers['output']}")
     
-    # 3. Remove specific project images
-    print("🖼️ Removing project images...")
+    # 3. Remove ALL project-related images (comprehensive list)
+    print("🖼️ Removing ALL project images...")
     images_to_remove = [
+        # Device images
         'device-simulator',
+        'vdevice',
+        # Attacker images
         'dos-attacker',
+        'ssh-attacker',
+        'malware-attacker',
+        'malware_attacker',
+        # Honeypot images
         'honeypot-server',
+        'beelzebub',
+        'cowrie',
+        # Monitor images
         'monitor-image',
         'net-monitor-wan',
-        'honeypot-monitor'
+        'network-monitor',
+        'network-security-monitor',
+        'honeypot-monitor',
+        # Dashboard
+        'dashboard-app'
     ]
     
     for image in images_to_remove:
         rm_image = run_wsl_command(f'docker rmi -f {image} 2>/dev/null || true')
         if rm_image['output'].strip():
-            results.append(f"Removed image {image}")
+            results.append(f"Removed image: {image}")
     
-    # 4. Remove ALL unused images (dangling)
-    print("🧹 Removing dangling images...")
-    prune_images = run_wsl_command('docker image prune -f')
+    # 4. Remove ALL images containing project keywords
+    print("🧨 Removing all network_security_poc images...")
+    rm_all_project = run_wsl_command('docker images | grep -E "network_security_poc|device|attacker|honeypot|monitor" | awk \'{print $3}\' | xargs -r docker rmi -f 2>/dev/null || true')
+    if rm_all_project['output'].strip():
+        results.append(f"Bulk removed project images")
+    
+    # 5. Remove ALL unused/dangling images
+    print("🧹 Removing ALL dangling and unused images...")
+    prune_images = run_wsl_command('docker image prune -af')
     results.append(f"Pruned images: {prune_images['output']}")
     
-    # 5. Remove custom network
-    print("🌐 Removing custom network...")
-    rm_network = run_wsl_command('docker network rm custom_net 2>/dev/null || true')
-    results.append(f"Removed network: {rm_network['output']}")
+    # 6. Remove ALL custom networks
+    print("🌐 Removing ALL custom networks...")
+    networks = ['custom_net', 'honeypot_net', 'attacker_net', 'monitor_net']
+    for net in networks:
+        rm_network = run_wsl_command(f'docker network rm {net} 2>/dev/null || true')
+        if rm_network['output'].strip():
+            results.append(f"Removed network: {net}")
     
-    # 6. Clean up volumes (optional, be careful!)
-    print("💾 Removing unused volumes...")
-    prune_volumes = run_wsl_command('docker volume prune -f')
+    # 7. Remove ALL unused networks
+    print("🔌 Pruning unused networks...")
+    prune_networks = run_wsl_command('docker network prune -f')
+    results.append(f"Pruned networks: {prune_networks['output']}")
+    
+    # 8. Clean up ALL volumes
+    print("💾 Removing ALL unused volumes...")
+    prune_volumes = run_wsl_command('docker volume prune -af')
     results.append(f"Pruned volumes: {prune_volumes['output']}")
     
-    # 7. Final system prune
-    print("🧼 Final system cleanup...")
-    system_prune = run_wsl_command('docker system prune -f')
+    # 9. Final aggressive system prune (remove everything unused)
+    print("🧼 Final COMPLETE system cleanup...")
+    system_prune = run_wsl_command('docker system prune -af --volumes')
     results.append(f"System prune: {system_prune['output']}")
     
     return jsonify({
@@ -1491,7 +1528,7 @@ def start_attackers():
         })
     
     # Start attackers using docker-compose
-    result = run_wsl_command(f'cd {WSL_ATTACKERS_DIR} && docker compose up -d --build')
+    result = run_wsl_command(f'cd {WSL_ATTACKERS_DIR} && docker compose up -d --build', timeout=180)
     
     return jsonify({
         'success': result['success'],
@@ -1504,7 +1541,7 @@ def stop_attackers():
     """Stop DOS attacker containers"""
     
     # First, clean up iptables rules for the attacker
-    cleanup_result = run_wsl_command('bash /mnt/e/nos/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.132')
+    cleanup_result = run_wsl_command('bash /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.132')
     
     # Then stop the containers
     result = run_wsl_command(f'cd {WSL_ATTACKERS_DIR} && docker compose down')
@@ -1527,7 +1564,7 @@ def start_ssh_attacker():
         })
     
     # Start SSH attacker using docker compose
-    result = run_wsl_command('cd /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker && docker compose up -d --build')
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/ssh_attacker && docker compose up -d --build', timeout=180)
     
     return jsonify({
         'success': result['success'],
@@ -1540,10 +1577,10 @@ def stop_ssh_attacker():
     """Stop SSH brute force attacker"""
     
     # First, clean up iptables rules for the SSH attacker (192.168.6.133)
-    cleanup_result = run_wsl_command('bash /mnt/e/nos/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.133')
+    cleanup_result = run_wsl_command('bash /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/dos_attacker/cleanup_iptables.sh 192.168.6.133')
     
     # Then stop the container
-    result = run_wsl_command('cd /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker && docker compose down')
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/ssh_attacker && docker compose down')
     
     return jsonify({
         'success': result['success'],
@@ -1558,7 +1595,7 @@ def get_ssh_attacker_logs():
     container_logs = run_wsl_command('docker logs --tail 100 ssh-attacker 2>&1')
     
     # Get summary log if exists
-    summary_logs = run_wsl_command('cat /mnt/e/nos/Network_Security_poc/attackers/ssh_attacker/logs/ssh_summary.log 2>/dev/null || echo "No summary log yet"')
+    summary_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/ssh_attacker/logs/ssh_summary.log 2>/dev/null || echo "No summary log yet"')
     
     return jsonify({
         'success': True,
@@ -1581,7 +1618,7 @@ def start_malware_attacker():
         })
     
     # Start malware attacker using docker compose
-    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker && docker compose up -d --build')
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker && docker compose up -d --build', timeout=180)
     
     return jsonify({
         'success': result['success'],
@@ -1593,53 +1630,47 @@ def start_malware_attacker():
 def stop_malware_attacker():
     """Stop malware behavior simulation attacker"""
     
-    # First, clean up iptables rules for the malware attacker (192.168.6.134)
-    cleanup_result = run_wsl_command('bash /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/cleanup_iptables.sh 192.168.6.134')
-    
-    # Then stop the container
+    # Stop the container
     result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker && docker compose down')
     
     return jsonify({
         'success': result['success'],
-        'message': 'Malware Attacker stopped and iptables cleaned up' if result['success'] else result['error']
+        'message': 'Malware Attacker stopped successfully' if result['success'] else result['error']
     })
 
 @app.route('/api/malware_attacker/logs', methods=['GET'])
 def get_malware_attacker_logs():
     """Get malware attacker logs"""
     
-    # Get container logs
-    container_logs = run_wsl_command('docker logs --tail 100 malware-attacker 2>&1')
+    # Get container logs (using correct container name)
+    container_logs = run_wsl_command('docker logs --tail 100 malware_attacker 2>&1')
     
-    # Get individual behavior logs
-    beacon_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/beacon.log 2>/dev/null | tail -20 || echo "No beacon logs yet"')
-    exfil_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/exfil.log 2>/dev/null | tail -20 || echo "No exfiltration logs yet"')
-    eicar_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/eicar.log 2>/dev/null | tail -20 || echo "No EICAR logs yet"')
-    dns_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/dns_nxdomain.log 2>/dev/null | tail -20 || echo "No DNS logs yet"')
-    orchestrator_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/orchestrator.log 2>/dev/null | tail -20 || echo "No orchestrator logs yet"')
+    # Get consolidated malware log (all behaviors in one file)
+    malware_log = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/malware.log 2>/dev/null | tail -50 || echo "No logs yet"')
     
     return jsonify({
         'success': True,
         'container_logs': container_logs['output'] if container_logs['success'] else 'Container not running',
-        'beacon_logs': beacon_logs['output'],
-        'exfil_logs': exfil_logs['output'],
-        'eicar_logs': eicar_logs['output'],
-        'dns_logs': dns_logs['output'],
-        'orchestrator_logs': orchestrator_logs['output']
+        'malware_logs': malware_log['output'],
+        'beacon_logs': malware_log['output'],
+        'exfil_logs': malware_log['output'],
+        'eicar_logs': malware_log['output'],
+        'dns_logs': malware_log['output'],
+        'orchestrator_logs': malware_log['output']
     })
 
 @app.route('/api/malware_attacker/status', methods=['GET'])
 def get_malware_attacker_status():
     """Get malware attacker container status"""
     
-    # Check if container is running
-    status = run_wsl_command('docker ps -f name=malware-attacker --format "{{.Status}}"')
+    # Check if container is running (correct container name)
+    status = run_wsl_command('docker ps -f name=malware_attacker --format "{{.Status}}"')
     is_running = status['success'] and status['output'].strip() != ''
     
-    # Get container IP if running
-    ip_address = '192.168.6.134'
+    # Get container IP if running (correct IP: 192.168.6.200)
+    ip_address = '192.168.6.200'
     if is_running:
-        ip_result = run_wsl_command('docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" malware-attacker')
+        ip_result = run_wsl_command('docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" malware_attacker')
         if ip_result['success']:
             ip_address = ip_result['output'].strip()
     
@@ -1662,8 +1693,8 @@ def get_malware_attacker_status():
 def start_monitor():
     """Start network monitor server"""
     
-    # Use wsl-manager.sh to start
-    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && bash wsl-manager.sh start')
+    # Use docker-compose to start (build can take 2-3 minutes)
+    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && docker compose up -d --build', timeout=300)
     
     return jsonify({
         'success': result['success'],
@@ -1675,7 +1706,7 @@ def start_monitor():
 def stop_monitor():
     """Stop network monitor server"""
     
-    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && bash wsl-manager.sh stop')
+    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && docker compose down')
     
     return jsonify({
         'success': result['success'],
@@ -1687,7 +1718,7 @@ def stop_monitor():
 def get_monitor_status():
     """Get network monitor status"""
     
-    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && bash wsl-manager.sh status')
+    result = run_wsl_command('docker ps --filter name=net-monitor-wan --format "{{.Status}}"')
     
     # Check if monitor container is running
     is_running = result['success'] and 'running' in result['output'].lower()

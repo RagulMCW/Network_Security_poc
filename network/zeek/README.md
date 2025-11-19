@@ -44,11 +44,17 @@ Alternatively, close the monitor window or press Ctrl+C.
 Logs are automatically saved to zeek_logs folder with the following structure:
 
 - session_YYYYMMDD_HHMMSS/
-  - conn.log (Connection records)
-  - http.log (HTTP transactions)
-  - files.log (File transfers)
+  - conn.log (All connection records - always generated)
+  - http.log (HTTP transactions - when HTTP traffic detected)
+  - dns.log (DNS queries - when DNS traffic detected)
+  - ssl.log (SSL/TLS connections - when HTTPS traffic detected)
+  - ssh.log (SSH connections - when SSH traffic detected)
+  - ftp.log (FTP sessions - when FTP traffic detected)
+  - files.log (File transfers - when files detected)
   - packet_filter.log (Filter statistics)
   - weird.log (Unusual activity if detected)
+
+**Note:** Protocol-specific logs (http, dns, ssl, ssh, ftp) are only created when that type of traffic is detected in the capture window. See `LOG_FILES.md` for detailed information about each log type.
 
 ### Session Management
 
@@ -88,6 +94,17 @@ Docker Bridge (custom_net) -> tcpdump (2-second rotation) -> PCAP files -> Zeek 
 Edit zeek_monitor.sh to change the monitored network
 
 Default: NETWORK_NAME="custom_net"
+
+### Protocol Analyzers
+
+The system uses `local.zeek` to load specific protocol analyzers:
+- HTTP/HTTPS traffic analysis
+- DNS query logging
+- SSL/TLS certificate inspection
+- SSH connection monitoring
+- FTP session tracking
+
+See `LOG_FILES.md` for details on each log type.
 
 ### Session Retention
 

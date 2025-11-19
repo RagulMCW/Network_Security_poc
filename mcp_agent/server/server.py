@@ -22,77 +22,43 @@ class NetworkSecurityServer:
         self.analyze_bat = self.network_dir / "analyze_auto.bat"
         
         self.mcp = FastMCP(
-            name="Network Security Analyst",
-            instructions="""You are an autonomous AI Security Analyst with STRICT ACCESS RESTRICTIONS.
+            name="Network Security Expert",
+            instructions="""You are a professional AI Network Security Expert focused on Docker network monitoring.
 
-                    ⚠️⚠️⚠️ CRITICAL SECURITY BOUNDARIES - MANDATORY ENFORCEMENT ⚠️⚠️⚠️
-                    
-                    🔒 ABSOLUTE RESTRICTIONS - ZERO EXCEPTIONS:
-                    
-                    ❌❌❌ FORBIDDEN COMMANDS - NEVER USE THESE ❌❌❌
-                    - NO ipconfig (reads host network)
-                    - NO netstat (reads host connections)
-                    - NO ping (tests host connectivity)
-                    - NO nslookup (host DNS queries)
-                    - NO tracert (host routing)
-                    - NO arp (host network tables)
-                    - NO route print (host routing tables)
-                    - NO Get-NetAdapter (PowerShell network info)
-                    - NO Get-NetIPAddress (host IP info)
-                    - NO ifconfig (Linux host network)
-                    - NO ip addr (Linux host network)
-                    
-                    ✅ ONLY ALLOWED COMMANDS:
-                    - docker network inspect (Docker networks ONLY)
-                    - docker ps (Docker containers ONLY)
-                    - docker stats (Docker container stats ONLY)
-                    - docker logs (Docker container logs ONLY)
-                    - wsl docker ... (Docker in WSL ONLY)
-                    - read_file / write_file (project files ONLY)
-                    - analyze_traffic (Docker pcap files ONLY)
-                    - read_zeek_logs (Docker Zeek logs ONLY)
-                    
-                    🔒 YOUR ACCESS IS LIMITED TO:
-                    1. FILE OPERATIONS: Read/Write files in project directory ONLY
-                    2. DOCKER OPERATIONS: View Docker containers and networks ONLY
-                    3. ZEEK LOGS: Read network analysis from Docker containers ONLY
-                    4. TRAFFIC ANALYSIS: Analyze pcap files from Docker ONLY
-                    
-                    ❌ YOU CANNOT ACCESS:
-                    1. Host Windows network interfaces (WiFi, Ethernet, VPN)
-                    2. Host system IP addresses or network configuration
-                    3. Host network connections or ports
-                    4. Host routing tables or ARP cache
-                    5. Any real network devices outside Docker
-                    
-                    📍 DOCKER NETWORK SCOPE:
-                    - Docker bridge: 192.168.6.0/24
-                    - Honeypot network: 192.168.10.0/24
-                    - Valid IPs: 192.168.6.x and 192.168.10.x ONLY
-                    
-                    🛡️ WHEN USER ASKS ABOUT NETWORK:
-                    1. If user asks "what is my network status" → Respond: "I only have access to Docker network. Use 'docker network inspect' to see Docker networks."
-                    2. If user asks "show network info" → ONLY show Docker network info
-                    3. If user asks "check network" → ONLY check Docker containers
-                    4. NEVER run ipconfig, netstat, ping, or any host network commands
-                    
-                    🚨 MANDATORY RESPONSE TEMPLATE:
-                    When asked about network, respond with:
-                    "🔒 ACCESS RESTRICTION: I can only access Docker networks (192.168.6.x), not the host system network.
-                    
-                    Docker Network Status:
-                    - Use 'docker network inspect' to view Docker networks
-                    - Use 'docker ps' to see running containers
-                    - Use 'analyze_traffic' to check Docker traffic captures
-                    
-                    I cannot access your Windows network interfaces, WiFi, or host IP addresses."
-                    
-                    YOUR MISSION:
-                    Monitor DOCKER network traffic ONLY, identify threats in DOCKER containers ONLY, isolate malicious DOCKER devices ONLY.
-                    
-                    ⚠️⚠️⚠️ FINAL WARNING ⚠️⚠️⚠️
-                    You operate EXCLUSIVELY in Docker environment. You have ZERO access to host system network.
-                    Any attempt to access host network will be BLOCKED by security validation."""
+🎯 YOUR MISSION:
+Monitor and analyze Docker network traffic for security threats and anomalies.
+
+📍 SCOPE - DOCKER NETWORK ONLY:
+- Network: custom_net (192.168.6.0/24)
+- Containers: Devices, Monitor Server, Attackers
+- Traffic Source: Zeek IDS logs from Docker bridge
+- Valid IPs: 192.168.6.x ONLY
+
+✅ YOUR CAPABILITIES:
+1. READ ZEEK LOGS - Analyze network traffic from Zeek (conn.log, http.log, dns.log, files.log, extracted files)
+2. DETECT THREATS - Identify malware behaviors, C2 communication, data exfiltration, DNS attacks
+3. ANALYZE PATTERNS - Find DoS attacks, port scans, brute force attempts
+4. MONITOR CONTAINERS - Check Docker container status and network connectivity
+5. GENERATE REPORTS - Provide clear security summaries and recommendations
+
+🔒 STRICT RESTRICTIONS:
+- Access ONLY Docker network (192.168.6.x)
+- NO host system network commands (ipconfig, netstat, ping, etc.)
+- NO Windows network interfaces
+- Use ONLY: docker commands, read_zeek_logs, read_file
+
+📊 WHEN ANALYZING:
+1. Start with: read_zeek_logs tool
+2. Look for: Suspicious IPs, unusual ports, high connection rates, malware signatures
+3. Report: Clear findings with confidence levels
+4. Recommend: Actions to take
+
+🎯 RESPONSE STYLE:
+- Be concise and professional
+- Use simple language
+- Highlight critical issues first
+- Provide actionable recommendations
+- Always mention Docker network scope"""
                 )
         self._register_tools()
     
@@ -872,82 +838,123 @@ chmod +x /tmp/mcp_script.sh"""
     
     
     def _read_zeek_logs(self, log_type: str = "all") -> str:
-        """Read current Zeek logs from WSL (running outside container on custom_net bridge)"""
+        """Read current Zeek logs in real-time from Windows zeek_logs directory"""
         try:
-            # Check if Zeek monitor is running on WSL
-            check_cmd = ["wsl", "bash", "-c", "pgrep -f zeek_monitor_wsl.sh"]
-            check_result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5)
+            # Path to Windows Zeek logs (auto-synced from WSL)
+            zeek_logs_dir = self.project_root / "network" / "zeek_logs"
             
-            if check_result.returncode != 0:
-                return "⚠️ Zeek monitor is not running on WSL.\n\n" + \
-                       "Start it with: network/zeek/START_ZEEK_WSL.bat\n" + \
-                       "This will monitor all traffic on the custom_net Docker network."
+            if not zeek_logs_dir.exists():
+                return "⚠️ Zeek logs directory not found.\n\n" + \
+                       "Expected: network/zeek_logs/\n" + \
+                       "Start Zeek monitor with: network/zeek/START.bat"
             
-            # Get ALL recent sessions from WSL /tmp/zeek_output
-            list_cmd = ["wsl", "bash", "-c", "ls -1td /tmp/zeek_output/session_* 2>/dev/null | head -10"]
-            
-            list_result = subprocess.run(
-                list_cmd,
-                capture_output=True,
-                text=True,
-                timeout=5
+            # Get all session directories (sorted by newest first)
+            session_dirs = sorted(
+                [d for d in zeek_logs_dir.glob("session_*") if d.is_dir()],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True
             )
             
-            if list_result.returncode != 0 or not list_result.stdout.strip():
-                return "No Zeek logs found yet.\n\n" + \
-                       "Zeek monitor is running but needs traffic to analyze.\n" + \
-                       "Make sure containers are connected to custom_net network."
-            
-            lines = list_result.stdout.strip().split('\n')
-            session_dirs = [line.strip() for line in lines if line.strip()]
-            
             if not session_dirs:
-                return "No Zeek sessions available yet. Waiting for network traffic..."
+                return "No Zeek sessions found yet.\n\n" + \
+                       "Start Zeek monitor to capture traffic: network/zeek/START.bat"
             
-            result = f"CURRENT ZEEK LOGS - Analyzing {len(session_dirs)} recent sessions\n{'='*80}\n\n"
+            # Read latest 5 sessions for real-time analysis
+            sessions_to_read = session_dirs[:5]
             
-            # Read ALL log files from ALL recent sessions
-            log_files = ["http.log", "conn.log", "dns.log", "files.log", "packet_filter.log"]
+            result = f"🔍 REAL-TIME ZEEK ANALYSIS - {len(sessions_to_read)} Latest Sessions\n{'='*80}\n\n"
             
-            for target_session in session_dirs:
-                session_name = target_session.split('/')[-1]
+            total_entries = 0
+            
+            for session_dir in sessions_to_read:
+                session_name = session_dir.name
+                session_time = datetime.fromtimestamp(session_dir.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
                 
-                for filename in log_files:
-                    log_path = f"{target_session}/{filename}"
+                result += f"\n📦 {session_name} (Created: {session_time})\n{'-'*80}\n"
+                
+                # Read ALL .log files in the session directory
+                all_log_files = sorted(session_dir.glob("*.log"))
+                
+                if not all_log_files:
+                    result += "  No log files found in this session\n"
+                    continue
+                
+                for log_path in all_log_files:
+                    log_file = log_path.name
                     
-                    cat_cmd = ["wsl", "cat", log_path]
-                    
-                    cat_result = subprocess.run(
-                        cat_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    
-                    if cat_result.returncode != 0:
-                        continue
-                    
-                    file_content = cat_result.stdout
-                    data_lines = [line for line in file_content.split('\n') if line and not line.startswith('#')]
-                    
-                    if not data_lines:
-                        continue
-                    
-                    result += f"\n{'='*80}\n{session_name}/{filename} ({len(data_lines)} entries)\n{'='*80}\n"
-                    result += file_content
-                    result += f"\n"
+                    try:
+                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                        
+                        # Parse data lines (skip comments starting with #)
+                        lines = content.split('\n')
+                        data_lines = [line for line in lines if line.strip() and not line.startswith('#')]
+                        
+                        if not data_lines:
+                            result += f"\n  📄 {log_file}: [empty]\n"
+                            continue
+                        
+                        total_entries += len(data_lines)
+                        
+                        result += f"\n  📄 {log_file}: {len(data_lines)} entries\n"
+                        
+                        # Show header and recent entries (last 20)
+                        header_lines = [line for line in lines if line.startswith('#')]
+                        if header_lines:
+                            result += "\n".join(header_lines[:10]) + "\n\n"
+                        
+                        # Show latest entries
+                        recent_entries = data_lines[-20:]
+                        result += "\n".join(recent_entries) + "\n"
+                        
+                    except Exception as e:
+                        result += f"  ⚠️ Error reading {log_file}: {str(e)}\n"
+                
+                # Check for extracted_files directory
+                extracted_dir = session_dir / "extracted_files"
+                if extracted_dir.exists() and extracted_dir.is_dir():
+                    extracted_files = list(extracted_dir.glob("*"))
+                    if extracted_files:
+                        result += f"\n  📦 Extracted Files: {len(extracted_files)} files\n"
+                        result += f"  {'─'*60}\n"
+                        
+                        for extracted_file in extracted_files[:10]:  # Show first 10
+                            try:
+                                file_size = extracted_file.stat().st_size
+                                with open(extracted_file, 'r', encoding='utf-8', errors='ignore') as f:
+                                    file_content = f.read()
+                                
+                                # Check for EICAR in extracted files
+                                has_eicar = "EICAR" in file_content
+                                eicar_marker = " ⚠️ EICAR!" if has_eicar else ""
+                                
+                                result += f"\n  📄 {extracted_file.name} ({file_size}B){eicar_marker}\n"
+                                
+                                # Show content preview (first 300 chars)
+                                preview = file_content[:300]
+                                if len(file_content) > 300:
+                                    preview += "..."
+                                result += f"     {preview}\n"
+                                
+                            except Exception as e:
+                                result += f"  ⚠️ {extracted_file.name}: {str(e)}\n"
+                        
+                        if len(extracted_files) > 10:
+                            result += f"\n  ... and {len(extracted_files) - 10} more files\n"
             
-            if len(result) > 200:
-                return result
-            else:
-                return "Zeek logs exist but appear empty.\n\n" + \
-                       "This means no network traffic was captured yet on custom_net.\n" + \
-                       "Make sure your containers are running and connected to the network."
+            if total_entries == 0:
+                return "Zeek monitor is running but no traffic captured yet.\n\n" + \
+                       "Ensure devices are connected to custom_net and generating traffic."
             
-        except subprocess.TimeoutExpired:
-            return "ERROR: Timeout reading Zeek logs from WSL"
+            result += f"\n{'='*80}\n"
+            result += f"📊 Summary: {total_entries} total log entries across {len(sessions_to_read)} sessions\n"
+            result += f"{'='*80}\n"
+            
+            return result
+            
         except Exception as e:
-            return f"ERROR reading Zeek logs: {str(e)}"
+            import traceback
+            return f"ERROR reading Zeek logs: {str(e)}\n\nTraceback: {traceback.format_exc()}"
     
     def _move_device_to_beelzebub(self, device_id: str, reason: str) -> str:
         """Move device from custom_net to honeypot_net (Beelzebub)"""

@@ -49,18 +49,9 @@ cleanup_old_sessions() {
 }
 
 start_tcpdump() {
-    if ! pgrep -f "tcpdump.*$PCAP_DIR" >/dev/null; then
-        log_message "Starting tcpdump on $BRIDGE_NAME..."
-        tcpdump -i "$BRIDGE_NAME" -s 0 -G 2 -w "$PCAP_DIR/capture_%Y%m%d_%H%M%S.pcap" not port 22 2>&1 | while read line; do
-            log_message "tcpdump: $line"
-        done &
-        TCPDUMP_PID=$!
-        sleep 1
-        if ps -p $TCPDUMP_PID > /dev/null 2>&1; then
-            log_message "tcpdump started successfully (PID: $TCPDUMP_PID)"
-        else
-            log_message "ERROR: tcpdump failed to start"
-        fi
+    if ! pgrep -f "tcpdump.*$BRIDGE_NAME" >/dev/null; then
+        tcpdump -i "$BRIDGE_NAME" -s 0 -G 2 -w "$PCAP_DIR/capture_%Y%m%d_%H%M%S.pcap" not port 22 >/dev/null 2>&1 &
+        log_message "tcpdump started (PID: $!)"
     fi
 }
 
@@ -90,18 +81,11 @@ process_pcap() {
 
 monitor_loop() {
     log_message "Starting continuous monitoring"
-    log_message "PCAP directory: $PCAP_DIR"
-    log_message "Output directory: $OUTPUT_DIR"
-    log_message "Windows backup: $WINDOWS_DIR"
     
     while true; do
         start_tcpdump
         
         mapfile -t pcap_files < <(find "$PCAP_DIR" -name "*.pcap" -type f 2>/dev/null || true)
-        
-        if [ ${#pcap_files[@]} -gt 0 ]; then
-            log_message "Found ${#pcap_files[@]} PCAP file(s)"
-        fi
         
         for pcap in "${pcap_files[@]}"; do
             [ -f "$pcap" ] || continue

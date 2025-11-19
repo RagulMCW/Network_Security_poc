@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   beelzebub:
     image: m4r10/beelzebub:latest
@@ -11,8 +9,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
     ports:
-      - "2222:22"    # SSH
-      - "8080:80"    # HTTP
+      - "2223:22"    # SSH (changed from 2222 to avoid conflict with monitor)
+      - "8081:80"    # HTTP (changed from 8080 to avoid conflict)
       - "8443:443"   # HTTPS
       - "2121:21"    # FTP
       - "2323:23"    # Telnet

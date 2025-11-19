@@ -276,6 +276,61 @@ def register_device():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Malware simulation endpoints (disguised as normal API endpoints)
+@app.route('/api/analytics/track', methods=['POST'])
+def analytics_track():
+    """C2 Command & Control beacon endpoint (disguised as analytics)"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    user_agent = request.headers.get('User-Agent', '')
+    print(f"[SUSPICIOUS] Analytics tracking from {source_ip} | UA: {user_agent}")
+    return jsonify({"status": "ok", "tracking_id": "12345"}), 200
+
+@app.route('/api/backup/sync', methods=['POST'])
+def backup_sync():
+    """Data exfiltration endpoint (disguised as backup sync)"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    user_agent = request.headers.get('User-Agent', '')
+    data_size = data.get('size', 0)
+    print(f"[SUSPICIOUS] Backup sync from {source_ip} | Size: {data_size} bytes | UA: {user_agent}")
+    return jsonify({"status": "synced", "backup_id": "abc123"}), 200
+
+@app.route('/api/files/upload', methods=['POST'])
+def files_upload():
+    """Malware file upload endpoint (disguised as file upload)"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    user_agent = request.headers.get('User-Agent', '')
+    filename = data.get('filename', 'unknown')
+    print(f"[SUSPICIOUS] File upload from {source_ip} | File: {filename} | UA: {user_agent}")
+    return jsonify({"status": "uploaded", "file_id": "xyz789"}), 200
+
+# Legacy malware endpoints (keep for backward compatibility)
+@app.route('/api/c2/beacon', methods=['POST'])
+def c2_beacon():
+    """C2 Command & Control beacon endpoint"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    print(f"[MALWARE C2] Beacon from {source_ip}")
+    return jsonify({"status": "received", "next_command": "none"}), 200
+
+@app.route('/api/exfil/data', methods=['POST'])
+def exfil_data():
+    """Data exfiltration endpoint"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    print(f"[MALWARE EXFIL] {data.get('size', 0)} bytes from {source_ip}")
+    return jsonify({"status": "received"}), 200
+
+@app.route('/api/upload/malware', methods=['POST'])
+def upload_malware():
+    """Malware file upload endpoint (EICAR test)"""
+    source_ip = request.remote_addr
+    data = request.get_json(force=True, silent=True) or {}
+    print(f"[MALWARE UPLOAD] File '{data.get('filename')}' from {source_ip}")
+    return jsonify({"status": "received"}), 200
+
 @app.route('/api/device/data', methods=['POST'])
 def receive_device_data():
     """Receive data from virtual devices"""

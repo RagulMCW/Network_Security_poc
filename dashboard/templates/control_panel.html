@@ -694,8 +694,7 @@
                         Container: <strong>net-monitor-wan</strong><br>
                         Server IP: <strong>192.168.6.131:5000</strong><br>
                         Role: <em>Packet Capture & Device Management API</em><br>
-                        Flask API: <a href="http://localhost:5002" target="_blank" style="color: #667eea;">localhost:5002</a><br>
-                        HAProxy: <a href="http://localhost:8082" target="_blank" style="color: #667eea;">localhost:8082</a>
+                        HAProxy Stats: <a href="http://localhost:8415/stats" target="_blank" style="color: #667eea;">localhost:8415</a>
                     </p>
                     <div class="controls">
                         <button class="btn btn-success" onclick="startMonitor()">
@@ -817,12 +816,13 @@
                         <span class="status-badge status-off" id="beelzebub-services-count">0 Services</span>
                     </div>
                     <div id="beelzebub-services" style="color: #6b7280;">
-                        <p>SSH: <strong>Port 2222</strong></p>
-                        <p>HTTP Admin Panel: <strong>Port 8080</strong></p>
-                        <p>HTTP Alt: <strong>Port 8081</strong></p>
+                        <p>SSH: <strong>Port 2223</strong></p>
+                        <p>HTTP: <strong>Port 8081</strong></p>
+                        <p>HTTPS: <strong>Port 8443</strong></p>
+                        <p>FTP: <strong>Port 2121</strong></p>
+                        <p>Telnet: <strong>Port 2323</strong></p>
                         <p>MySQL: <strong>Port 3306</strong></p>
                         <p>PostgreSQL: <strong>Port 5432</strong></p>
-                        <p>Log Viewer: <strong><a href="http://localhost:8888/logs" target="_blank" style="color: #667eea;">Port 8888</a></strong></p>
                     </div>
                 </div>
             </div>
@@ -1011,11 +1011,12 @@
             <!-- Malware Attacker -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">🦠 Malware Behavior Simulator (192.168.6.134)</div>
+                    <div class="card-title">🦠 Malware Behavior Simulator (192.168.6.200)</div>
                     <span class="status-badge" id="malware-attacker-status">OFF</span>
                 </div>
                 <p style="color: #6b7280; margin-bottom: 15px;">
-                    Simulates multiple malware behaviors: C2 Beaconing, Data Exfiltration, EICAR Upload, DNS DGA/Tunneling
+                    <strong>Device Type:</strong> Malware Simulator Container | <strong>IP:</strong> 192.168.6.200<br>
+                    <strong>Behaviors:</strong> C2 Beaconing (15s), Data Exfiltration (25s), EICAR Upload (40s), DNS Attacks (20s)
                 </p>
                 
                 <!-- Behavior Status Grid -->
@@ -1124,46 +1125,55 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">💬 Chat with AI Agent</div>
-                    <button class="btn btn-secondary btn-small" onclick="clearAgentChat()">
-                        🗑️ Clear Chat
-                    </button>
+                    <div>
+                        <button class="btn btn-success btn-small" onclick="downloadChatHistory()" style="margin-right: 10px;">
+                            💾 Download Chat
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="clearAgentChat()">
+                            🗑️ Clear Chat
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Chat Messages Container -->
                 <div id="agent-chat-messages" style="
-                    background: rgba(0,0,0,0.3);
-                    border-radius: 8px;
+                    background: #1a1a2e;
+                    border-radius: 10px;
                     padding: 20px;
                     margin: 15px;
                     max-height: 500px;
                     overflow-y: auto;
                     min-height: 300px;
-                    border: 1px solid rgba(255,255,255,0.1);
+                    border: 2px solid #2c2c54;
+                    box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
                 ">
                     <!-- Welcome Message -->
                     <div class="agent-message" style="
-                        background: rgba(52, 152, 219, 0.2);
-                        border-left: 3px solid #3498db;
-                        padding: 15px;
-                        border-radius: 4px;
+                        background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(52, 152, 219, 0.05));
+                        border-left: 4px solid #3498db;
+                        padding: 20px;
+                        border-radius: 8px;
                         margin-bottom: 15px;
+                        box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
                     ">
-                        <div style="display: flex; align-items: start; gap: 12px;">
-                            <i class="fas fa-robot" style="color: #3498db; font-size: 1.5em; margin-top: 3px;"></i>
+                        <div style="display: flex; align-items: start; gap: 15px;">
+                            <i class="fas fa-robot" style="color: #5dade2; font-size: 1.8em; margin-top: 3px;"></i>
                             <div style="flex: 1;">
-                                <div style="color: #3498db; font-weight: bold; margin-bottom: 8px;">Autonomous AI Security Analyst</div>
-                                <div style="color: #fff;">
-                                    👋 Hello! I'm your <strong>Autonomous MCP Agent</strong>. I can:
+                                <div style="color: #5dade2; font-weight: bold; font-size: 1.1em; margin-bottom: 12px;">AI Network Security Expert</div>
+                                <div style="color: #e8e8e8; line-height: 1.6;">
+                                    Professional AI agent for Docker network security monitoring and threat analysis.
                                     <ul style="margin: 10px 0; padding-left: 20px;">
-                                        <li>🔍 Analyze PCAP captures with Scapy (last 3 files)</li>
-                                        <li>🛡️ Detect DoS/DDoS attacks, port scans, brute-force</li>
-                                        <li>� Show device info, IPs, protocols, and traffic stats</li>
-                                        <li>� <strong>AUTO-ISOLATE</strong> threats to honeypot (no approval needed!)</li>
-                                        <li>🤖 Use Claude AI for expert threat analysis</li>
+                                        <li>🔍 Analyze Zeek network traffic logs</li>
+                                        <li>🛡️ Detect malware behaviors and attack patterns</li>
+                                        <li>📊 Monitor Docker network (custom_net: 192.168.6.0/24)</li>
+                                        <li>🎯 Identify suspicious connections and anomalies</li>
+                                        <li>📝 Generate security reports and recommendations</li>
                                     </ul>
-                                    <div style="margin-top: 10px; padding: 10px; background: rgba(46, 204, 113, 0.2); border-radius: 4px;">
-                                        <strong>Try:</strong> <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"analyze"</code> 
-                                        or <code style="background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 3px;">"security status"</code>
+                                    <div style="margin-top: 15px; padding: 12px; background: rgba(46, 204, 113, 0.15); border-radius: 6px; border: 1px solid rgba(46, 204, 113, 0.3);">
+                                        <strong style="color: #2ecc71;">Quick Commands:</strong> 
+                                        <code style="background: #2c3e50; color: #2ecc71; padding: 4px 8px; border-radius: 4px; margin: 0 3px; font-weight: 500;">analyze traffic</code> 
+                                        <code style="background: #2c3e50; color: #2ecc71; padding: 4px 8px; border-radius: 4px; margin: 0 3px; font-weight: 500;">check security</code>
+                                        <code style="background: #2c3e50; color: #2ecc71; padding: 4px 8px; border-radius: 4px; margin: 0 3px; font-weight: 500;">read logs</code>
                                     </div>
                                 </div>
                             </div>
@@ -1172,40 +1182,43 @@
                 </div>
 
                 <!-- Chat Input -->
-                <div style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div style="padding: 15px; border-top: 2px solid rgba(93, 173, 226, 0.3); background: rgba(0,0,0,0.2);">
                     <div style="display: flex; gap: 10px;">
                         <input 
                             type="text" 
                             id="agent-query-input" 
-                            placeholder="Ask me anything... (e.g., 'analyze traffic', 'security status', 'reroute device 192.168.6.10')"
+                            placeholder="Ask about network security... (e.g., 'analyze latest logs', 'check for threats')"
                             style="
                                 flex: 1;
-                                padding: 12px 15px;
-                                background: rgba(0,0,0,0.3);
-                                border: 1px solid rgba(255,255,255,0.2);
-                                border-radius: 6px;
-                                color: white;
+                                padding: 14px 18px;
+                                background: #2c3e50;
+                                border: 2px solid #34495e;
+                                border-radius: 8px;
+                                color: #ecf0f1;
                                 font-size: 0.95em;
+                                transition: all 0.3s ease;
                             "
+                            onfocus="this.style.borderColor='#5dade2'; this.style.background='#34495e';"
+                            onblur="this.style.borderColor='#34495e'; this.style.background='#2c3e50';"
                             onkeypress="if(event.key === 'Enter') sendAgentQuery()"
                         />
-                        <button class="btn btn-primary" onclick="sendAgentQuery()" style="min-width: 120px;">
+                        <button class="btn btn-primary" onclick="sendAgentQuery()" style="min-width: 120px; background: #3498db; border: none; padding: 14px 24px;">
                             <i class="fas fa-paper-plane"></i> Send
                         </button>
                     </div>
                     <!-- Quick Action Buttons -->
                     <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-                        <button class="btn btn-primary btn-small" onclick="quickAgentQuery('analyze network traffic')">
-                            🔍 Analyze Network
+                        <button class="btn btn-primary btn-small" onclick="quickAgentQuery('read latest zeek logs and analyze')">
+                            🔍 Read Logs
                         </button>
-                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('security status')">
-                            🛡️ Security Status
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('check docker network status')">
+                            🐳 Network Status
                         </button>
-                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('what devices are connected')">
-                            🖥️ Show Devices
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('analyze for malware and threats')">
+                            🛡️ Threat Check
                         </button>
-                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('help')">
-                            ❓ Show Commands
+                        <button class="btn btn-secondary btn-small" onclick="quickAgentQuery('show docker containers')">
+                            📦 Show Containers
                         </button>
                     </div>
                 </div>

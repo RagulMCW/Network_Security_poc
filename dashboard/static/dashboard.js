@@ -1462,24 +1462,30 @@ async function viewDeviceContainerLogs(deviceName) {
 // STOP ALL - Nuclear cleanup
 function confirmStopAll() {
     const confirmed = confirm(
-        '⚠️ DANGER: This will STOP and REMOVE:\n\n' +
-        '• ALL running containers\n' +
-        '• ALL stopped containers\n' +
-        '• ALL project images (device-simulator, honeypot, attackers, monitor)\n' +
-        '• ALL Docker networks (custom_net)\n' +
-        '• ALL unused volumes\n\n' +
+        '🚨 NUCLEAR OPTION - COMPLETE CLEANUP 🚨\n\n' +
+        'This will PERMANENTLY DELETE:\n\n' +
+        '✗ ALL containers (devices, honeypots, attackers, monitors)\n' +
+        '✗ ALL images (device-simulator, malware-attacker, beelzebub, etc.)\n' +
+        '✗ ALL networks (custom_net, honeypot_net, etc.)\n' +
+        '✗ ALL volumes and build cache\n' +
+        '✗ The ENTIRE Docker environment for this project\n\n' +
+        '⚠️ YOU WILL NEED TO REBUILD EVERYTHING FROM SCRATCH!\n\n' +
         'This action CANNOT be undone!\n\n' +
-        'Are you absolutely sure you want to proceed?'
+        'Are you absolutely sure?'
     );
     
     if (!confirmed) return;
     
     // Double confirmation
     const doubleConfirm = confirm(
-        '🚨 FINAL WARNING 🚨\n\n' +
-        'This will completely wipe your Docker environment for this project.\n\n' +
-        'Type YES in your mind if you\'re sure...\n\n' +
-        'Click OK to proceed with TOTAL CLEANUP.'
+        '🔥 FINAL WARNING 🔥\n\n' +
+        'This will:\n' +
+        '• Stop ALL running containers immediately\n' +
+        '• Delete ALL Docker images (devices, malware, honeypots)\n' +
+        '• Remove ALL networks and volumes\n' +
+        '• Wipe the entire project environment\n\n' +
+        'After this, you must rebuild with docker-compose up!\n\n' +
+        'Click OK to proceed with TOTAL ANNIHILATION.'
     );
     
     if (!doubleConfirm) return;
@@ -1823,36 +1829,39 @@ function addAgentMessage(role, content, isThinking = false) {
     
     if (role === 'user') {
         messageDiv.style.cssText = `
-            background: rgba(46, 204, 113, 0.2);
-            border-left: 3px solid #2ecc71;
-            padding: 15px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.1));
+            border-left: 4px solid #2ecc71;
+            padding: 18px;
+            border-radius: 8px;
             margin-bottom: 15px;
+            box-shadow: 0 2px 6px rgba(46, 204, 113, 0.1);
         `;
         messageDiv.innerHTML = `
-            <div style="display: flex; align-items: start; gap: 12px;">
-                <i class="fas fa-user" style="color: #2ecc71; font-size: 1.3em; margin-top: 3px;"></i>
+            <div style="display: flex; align-items: start; gap: 15px;">
+                <i class="fas fa-user-circle" style="color: #52d788; font-size: 1.5em; margin-top: 3px;"></i>
                 <div style="flex: 1;">
-                    <div style="color: #2ecc71; font-weight: bold; margin-bottom: 8px;">You</div>
-                    <div style="color: #fff; white-space: pre-wrap;">${escapeHtml(content)}</div>
+                    <div style="color: #52d788; font-weight: bold; font-size: 1.05em; margin-bottom: 10px;">You</div>
+                    <div style="color: #f0f0f0; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(content)}</div>
                 </div>
             </div>
         `;
     } else {
-        const color = isThinking ? '#f39c12' : '#3498db';
+        const color = isThinking ? '#f39c12' : '#5dade2';
+        const bgColor = isThinking ? 'rgba(243, 156, 18, 0.15)' : 'rgba(52, 152, 219, 0.15)';
         messageDiv.style.cssText = `
-            background: rgba(52, 152, 219, 0.2);
-            border-left: 3px solid ${color};
-            padding: 15px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, ${bgColor}, rgba(52, 152, 219, 0.05));
+            border-left: 4px solid ${color};
+            padding: 18px;
+            border-radius: 8px;
             margin-bottom: 15px;
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.1);
         `;
         messageDiv.innerHTML = `
-            <div style="display: flex; align-items: start; gap: 12px;">
-                <i class="fas fa-robot" style="color: ${color}; font-size: 1.3em; margin-top: 3px;"></i>
+            <div style="display: flex; align-items: start; gap: 15px;">
+                <i class="fas fa-robot" style="color: ${color}; font-size: 1.5em; margin-top: 3px;"></i>
                 <div style="flex: 1;">
-                    <div style="color: ${color}; font-weight: bold; margin-bottom: 8px;">AI Agent</div>
-                    <div style="color: #fff; white-space: pre-wrap;">${formatAgentResponse(content)}</div>
+                    <div style="color: ${color}; font-weight: bold; font-size: 1.05em; margin-bottom: 10px;">AI Agent</div>
+                    <div style="color: #e8e8e8; white-space: pre-wrap; line-height: 1.6;">${formatAgentResponse(content)}</div>
                 </div>
             </div>
         `;
@@ -1903,6 +1912,49 @@ function clearAgentChat() {
     agentQueriesCount = 0;
     document.getElementById('agent-queries-count').textContent = '0';
     showToast('Chat cleared', 'success');
+}
+
+// Download chat history
+function downloadChatHistory() {
+    const chatContainer = document.getElementById('agent-chat-messages');
+    const messages = chatContainer.querySelectorAll('.user-message, .agent-message');
+    
+    if (messages.length === 0) {
+        showToast('No chat history to download', 'error');
+        return;
+    }
+    
+    let chatText = '=================================================\n';
+    chatText += 'Network Security AI Agent - Chat History\n';
+    chatText += `Downloaded: ${new Date().toLocaleString()}\n`;
+    chatText += '=================================================\n\n';
+    
+    messages.forEach((msg, index) => {
+        const isUser = msg.classList.contains('user-message');
+        const sender = isUser ? 'YOU' : 'AI AGENT';
+        const text = msg.textContent.trim();
+        
+        chatText += `[${sender}]\n`;
+        chatText += `${text}\n\n`;
+        chatText += '-------------------------------------------------\n\n';
+    });
+    
+    chatText += '=================================================\n';
+    chatText += `Total Messages: ${messages.length}\n`;
+    chatText += '=================================================\n';
+    
+    // Create blob and download
+    const blob = new Blob([chatText], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ai_chat_history_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    showToast('Chat history downloaded', 'success');
 }
 
 // Test API key

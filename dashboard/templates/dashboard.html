@@ -402,23 +402,48 @@
                 </div>
             </div>
 
-            <!-- Attacker Simulation -->
+            <!-- DOS Attacker Simulation -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
                         DOS Attackers
                     </div>
-                    <span class="status-badge" id="attacker-status">OFF</span>
+                    <span class="status-badge" id="dos-attacker-status">OFF</span>
                 </div>
                 <p style="color: #6b7280; margin-bottom: 15px;">
-                    Simulate DOS attacks for testing
+                    IP: <strong>192.168.6.132</strong> | Type: <strong>Network Flood</strong>
                 </p>
                 <div class="controls">
-                    <button class="btn btn-success" onclick="startAttackers()">
-                        Start Attackers
+                    <button class="btn btn-success" onclick="startDOSAttackers()">
+                        Start DOS
                     </button>
-                    <button class="btn btn-danger" onclick="stopAttackers()">
-                        Stop Attackers
+                    <button class="btn btn-danger" onclick="stopDOSAttackers()">
+                        Stop DOS
+                    </button>
+                </div>
+            </div>
+
+            <!-- Malware Attacker Simulation -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        Malware Simulator
+                    </div>
+                    <span class="status-badge" id="malware-attacker-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    IP: <strong>192.168.6.200</strong> | Type: <strong>Malware Behaviors</strong><br>
+                    <small>C2 Beacon, Data Exfil, EICAR, DNS Attacks</small>
+                </p>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="startMalwareAttacker()">
+                        Start Malware
+                    </button>
+                    <button class="btn btn-danger" onclick="stopMalwareAttacker()">
+                        Stop Malware
+                    </button>
+                    <button class="btn btn-warning" onclick="viewMalwareLogs()">
+                        View Logs
                     </button>
                 </div>
             </div>
@@ -483,14 +508,24 @@
                     beelzebubStatus.className = 'status-badge status-off';
                 }
 
-                // Update attackers
-                const attackerStatus = document.getElementById('attacker-status');
-                if (data.attackers.running) {
-                    attackerStatus.textContent = 'ACTIVE';
-                    attackerStatus.className = 'status-badge status-on';
+                // Update DOS attackers
+                const dosAttackerStatus = document.getElementById('dos-attacker-status');
+                if (data.attackers.dos_running) {
+                    dosAttackerStatus.textContent = 'ACTIVE';
+                    dosAttackerStatus.className = 'status-badge status-on';
                 } else {
-                    attackerStatus.textContent = 'OFF';
-                    attackerStatus.className = 'status-badge status-off';
+                    dosAttackerStatus.textContent = 'OFF';
+                    dosAttackerStatus.className = 'status-badge status-off';
+                }
+
+                // Update malware attackers
+                const malwareAttackerStatus = document.getElementById('malware-attacker-status');
+                if (data.attackers.malware_running) {
+                    malwareAttackerStatus.textContent = 'RUNNING';
+                    malwareAttackerStatus.className = 'status-badge status-on';
+                } else {
+                    malwareAttackerStatus.textContent = 'OFF';
+                    malwareAttackerStatus.className = 'status-badge status-off';
                 }
 
                 // Update container count
@@ -654,8 +689,8 @@
             }
         }
 
-        // Attacker control
-        async function startAttackers() {
+        // DOS Attacker control
+        async function startDOSAttackers() {
             showToast('Starting DOS attackers...', 'success');
             try {
                 const response = await fetch('/api/attackers/start', { method: 'POST' });
@@ -663,19 +698,59 @@
                 showToast(data.message, data.success ? 'success' : 'error');
                 setTimeout(refreshStatus, 2000);
             } catch (error) {
-                showToast('Error starting attackers', 'error');
+                showToast('Error starting DOS attackers', 'error');
             }
         }
 
-        async function stopAttackers() {
-            showToast('Stopping attackers...', 'success');
+        async function stopDOSAttackers() {
+            showToast('Stopping DOS attackers...', 'success');
             try {
                 const response = await fetch('/api/attackers/stop', { method: 'POST' });
                 const data = await response.json();
                 showToast(data.message, data.success ? 'success' : 'error');
                 setTimeout(refreshStatus, 2000);
             } catch (error) {
-                showToast('Error stopping attackers', 'error');
+                showToast('Error stopping DOS attackers', 'error');
+            }
+        }
+
+        // Malware Attacker control
+        async function startMalwareAttacker() {
+            showToast('Starting malware simulator...', 'success');
+            try {
+                const response = await fetch('/api/malware_attacker/start', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error starting malware attacker', 'error');
+            }
+        }
+
+        async function stopMalwareAttacker() {
+            showToast('Stopping malware simulator...', 'success');
+            try {
+                const response = await fetch('/api/malware_attacker/stop', { method: 'POST' });
+                const data = await response.json();
+                showToast(data.message, data.success ? 'success' : 'error');
+                setTimeout(refreshStatus, 2000);
+            } catch (error) {
+                showToast('Error stopping malware attacker', 'error');
+            }
+        }
+
+        async function viewMalwareLogs() {
+            try {
+                const response = await fetch('/api/malware_attacker/logs');
+                const data = await response.json();
+                
+                const logsDisplay = document.getElementById('logs-display');
+                logsDisplay.innerHTML = `
+                    <div class="log-entry"><strong>MALWARE SIMULATOR LOGS</strong></div>
+                    <div class="log-entry"><strong>Container Logs:</strong><br>${data.container_logs.split('\n').slice(-20).join('<br>')}</div>
+                `;
+            } catch (error) {
+                showToast('Error loading malware logs', 'error');
             }
         }
 
