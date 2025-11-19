@@ -1007,6 +1007,91 @@
                     <pre id="ssh-logs-output" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #e5e7eb; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
                 </div>
             </div>
+
+            <!-- Malware Attacker -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🦠 Malware Behavior Simulator (192.168.6.134)</div>
+                    <span class="status-badge" id="malware-attacker-status">OFF</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 15px;">
+                    Simulates multiple malware behaviors: C2 Beaconing, Data Exfiltration, EICAR Upload, DNS DGA/Tunneling
+                </p>
+                
+                <!-- Behavior Status Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #9ca3af; margin-bottom: 5px;">C2 Beacon</div>
+                        <div style="font-weight: bold; color: #10b981;" id="malware-beacon-status">Inactive</div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #9ca3af; margin-bottom: 5px;">Exfiltration</div>
+                        <div style="font-weight: bold; color: #10b981;" id="malware-exfil-status">Inactive</div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #9ca3af; margin-bottom: 5px;">EICAR Upload</div>
+                        <div style="font-weight: bold; color: #10b981;" id="malware-eicar-status">Inactive</div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #9ca3af; margin-bottom: 5px;">DNS DGA</div>
+                        <div style="font-weight: bold; color: #10b981;" id="malware-dns-status">Inactive</div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn btn-success" onclick="startMalwareAttacker()">
+                        🦠 Start Malware Simulator
+                    </button>
+                    <button class="btn btn-danger" onclick="stopMalwareAttacker()">
+                        🛑 Stop Malware Simulator
+                    </button>
+                    <button class="btn btn-secondary" onclick="viewMalwareLogs()">
+                        📋 View Logs
+                    </button>
+                    <button class="btn btn-secondary" onclick="checkMalwareStatus()">
+                        🔄 Refresh Status
+                    </button>
+                </div>
+
+                <!-- Malware Logs Container -->
+                <div id="malware-logs-container" style="display: none; margin-top: 15px;">
+                    <h4 style="color: #9ca3af; margin-bottom: 10px;">Malware Behavior Logs:</h4>
+                    
+                    <!-- Log Type Selector -->
+                    <div style="margin-bottom: 10px;">
+                        <button class="btn btn-secondary btn-sm" onclick="showMalwareLog('all')" style="margin-right: 5px;">All Logs</button>
+                        <button class="btn btn-secondary btn-sm" onclick="showMalwareLog('beacon')" style="margin-right: 5px;">C2 Beacon</button>
+                        <button class="btn btn-secondary btn-sm" onclick="showMalwareLog('exfil')" style="margin-right: 5px;">Exfiltration</button>
+                        <button class="btn btn-secondary btn-sm" onclick="showMalwareLog('eicar')" style="margin-right: 5px;">EICAR</button>
+                        <button class="btn btn-secondary btn-sm" onclick="showMalwareLog('dns')">DNS DGA</button>
+                    </div>
+                    
+                    <!-- All Logs -->
+                    <div id="malware-log-all" class="malware-log-section">
+                        <pre id="malware-logs-output" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #e5e7eb; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                    
+                    <!-- Beacon Logs -->
+                    <div id="malware-log-beacon" class="malware-log-section" style="display: none;">
+                        <pre id="malware-beacon-logs" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #10b981; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                    
+                    <!-- Exfiltration Logs -->
+                    <div id="malware-log-exfil" class="malware-log-section" style="display: none;">
+                        <pre id="malware-exfil-logs" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #f59e0b; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                    
+                    <!-- EICAR Logs -->
+                    <div id="malware-log-eicar" class="malware-log-section" style="display: none;">
+                        <pre id="malware-eicar-logs" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #ef4444; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                    
+                    <!-- DNS Logs -->
+                    <div id="malware-log-dns" class="malware-log-section" style="display: none;">
+                        <pre id="malware-dns-logs" style="background: #1f2937; padding: 15px; border-radius: 8px; color: #8b5cf6; max-height: 400px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Logs Page -->

@@ -23,43 +23,76 @@ class NetworkSecurityServer:
         
         self.mcp = FastMCP(
             name="Network Security Analyst",
-            instructions="""You are an autonomous AI Security Analyst with full authority to protect the network.
+            instructions="""You are an autonomous AI Security Analyst with STRICT ACCESS RESTRICTIONS.
 
+                    ⚠️⚠️⚠️ CRITICAL SECURITY BOUNDARIES - MANDATORY ENFORCEMENT ⚠️⚠️⚠️
+                    
+                    🔒 ABSOLUTE RESTRICTIONS - ZERO EXCEPTIONS:
+                    
+                    ❌❌❌ FORBIDDEN COMMANDS - NEVER USE THESE ❌❌❌
+                    - NO ipconfig (reads host network)
+                    - NO netstat (reads host connections)
+                    - NO ping (tests host connectivity)
+                    - NO nslookup (host DNS queries)
+                    - NO tracert (host routing)
+                    - NO arp (host network tables)
+                    - NO route print (host routing tables)
+                    - NO Get-NetAdapter (PowerShell network info)
+                    - NO Get-NetIPAddress (host IP info)
+                    - NO ifconfig (Linux host network)
+                    - NO ip addr (Linux host network)
+                    
+                    ✅ ONLY ALLOWED COMMANDS:
+                    - docker network inspect (Docker networks ONLY)
+                    - docker ps (Docker containers ONLY)
+                    - docker stats (Docker container stats ONLY)
+                    - docker logs (Docker container logs ONLY)
+                    - wsl docker ... (Docker in WSL ONLY)
+                    - read_file / write_file (project files ONLY)
+                    - analyze_traffic (Docker pcap files ONLY)
+                    - read_zeek_logs (Docker Zeek logs ONLY)
+                    
+                    🔒 YOUR ACCESS IS LIMITED TO:
+                    1. FILE OPERATIONS: Read/Write files in project directory ONLY
+                    2. DOCKER OPERATIONS: View Docker containers and networks ONLY
+                    3. ZEEK LOGS: Read network analysis from Docker containers ONLY
+                    4. TRAFFIC ANALYSIS: Analyze pcap files from Docker ONLY
+                    
+                    ❌ YOU CANNOT ACCESS:
+                    1. Host Windows network interfaces (WiFi, Ethernet, VPN)
+                    2. Host system IP addresses or network configuration
+                    3. Host network connections or ports
+                    4. Host routing tables or ARP cache
+                    5. Any real network devices outside Docker
+                    
+                    📍 DOCKER NETWORK SCOPE:
+                    - Docker bridge: 192.168.6.0/24
+                    - Honeypot network: 192.168.10.0/24
+                    - Valid IPs: 192.168.6.x and 192.168.10.x ONLY
+                    
+                    🛡️ WHEN USER ASKS ABOUT NETWORK:
+                    1. If user asks "what is my network status" → Respond: "I only have access to Docker network. Use 'docker network inspect' to see Docker networks."
+                    2. If user asks "show network info" → ONLY show Docker network info
+                    3. If user asks "check network" → ONLY check Docker containers
+                    4. NEVER run ipconfig, netstat, ping, or any host network commands
+                    
+                    🚨 MANDATORY RESPONSE TEMPLATE:
+                    When asked about network, respond with:
+                    "🔒 ACCESS RESTRICTION: I can only access Docker networks (192.168.6.x), not the host system network.
+                    
+                    Docker Network Status:
+                    - Use 'docker network inspect' to view Docker networks
+                    - Use 'docker ps' to see running containers
+                    - Use 'analyze_traffic' to check Docker traffic captures
+                    
+                    I cannot access your Windows network interfaces, WiFi, or host IP addresses."
+                    
                     YOUR MISSION:
-                    Continuously monitor network traffic, identify threats, and automatically isolate malicious devices WITHOUT asking for permission.
-
-                    AVAILABLE TOOLS:
-                    1. analyze_traffic - Analyze network captures for threats, connected devices, traffic patterns
-                    2. move_device_to_beelzebub - Immediately isolate malicious devices (automatic, no approval needed)
-
-                    AUTOMATIC THREAT RESPONSE (NO HUMAN APPROVAL REQUIRED):
-                    ✅ DoS/DDoS Attack (>500 packets from single IP) → AUTO-ISOLATE
-                    ✅ Port Scanning (>20 unique ports accessed) → AUTO-ISOLATE  
-                    ✅ Brute Force Attack (multiple failed logins) → AUTO-ISOLATE
-                    ✅ Suspicious High Traffic (>1000 packets) → AUTO-ISOLATE
-                    ✅ Malware Signatures Detected → AUTO-ISOLATE
-
-                    WORKFLOW FOR EVERY USER QUERY:
-                    1. ALWAYS call analyze_traffic first to get current network state
-                    2. Parse the analysis output for:
-                    - Connected devices and their IPs
-                    - Traffic statistics (packet counts, protocols)
-                    - Any anomalies or attack patterns
-                    3. If threats detected → IMMEDIATELY call move_device_to_beelzebub (don't ask, just do it)
-                    4. Provide comprehensive summary:
-                    - Network status overview
-                    - Connected devices (count, IPs, status)
-                    - Security threats found (if any)
-                    - Actions taken (isolations performed)
-
-                    RESPONSE FORMAT:
-                    Always provide:
-                    - 🔍 Network Overview (devices connected, total traffic)
-                    - 📊 Traffic Statistics (protocols, top IPs)
-                    - 🚨 Threats Detected (if any, with severity)
-                    - 🛡️ Actions Taken (devices isolated automatically)
-
-                    Remember: You are AUTONOMOUS. Isolate threats IMMEDIATELY without asking permission."""
+                    Monitor DOCKER network traffic ONLY, identify threats in DOCKER containers ONLY, isolate malicious DOCKER devices ONLY.
+                    
+                    ⚠️⚠️⚠️ FINAL WARNING ⚠️⚠️⚠️
+                    You operate EXCLUSIVELY in Docker environment. You have ZERO access to host system network.
+                    Any attempt to access host network will be BLOCKED by security validation."""
                 )
         self._register_tools()
     
@@ -318,6 +351,21 @@ class NetworkSecurityServer:
             return self._run_analyze_bat()
         
         @self.mcp.tool
+        def read_zeek_logs() -> str:
+            """Read Zeek network logs and dump ALL data to LLM for analysis.
+            
+            Returns complete raw Zeek logs from latest Docker session:
+            - conn.log: All network connections
+            - http.log: All HTTP requests  
+            - dns.log: All DNS queries
+            - files.log: All file transfers
+            - packet_filter.log: Zeek statistics
+            
+            Use this to analyze network traffic patterns and detect malware.
+            """
+            return self._read_zeek_logs("all")
+        
+        @self.mcp.tool
         def move_device_to_honeypot(device_id: str, reason: str = "Suspicious activity detected") -> str:
             """Move a malicious or suspicious device from custom_net to honeypot_net (Beelzebub) for isolation.
             
@@ -489,6 +537,24 @@ class NetworkSecurityServer:
     
     def _run_command(self, command: str, timeout: int = 30) -> str:
         """Run Windows terminal command"""
+        # SECURITY: Block host network commands
+        forbidden_commands = [
+            'ipconfig', 'netstat', 'ping', 'nslookup', 'tracert', 
+            'arp', 'route', 'pathping', 'netsh', 'getmac'
+        ]
+        cmd_lower = command.lower().strip()
+        for forbidden in forbidden_commands:
+            if cmd_lower.startswith(forbidden) or f' {forbidden}' in cmd_lower or f'\\{forbidden}' in cmd_lower:
+                return f"🚫 SECURITY BLOCKED: '{forbidden}' accesses host Windows network.\n" + \
+                       f"⚠️ You can ONLY access Docker network, not host system network.\n\n" + \
+                       f"✅ ALLOWED COMMANDS:\n" + \
+                       f"  - docker ps (via WSL)\n" + \
+                       f"  - docker network inspect (via WSL)\n" + \
+                       f"  - docker logs <container> (via WSL)\n" + \
+                       f"  - analyze_traffic (Docker pcap files)\n" + \
+                       f"  - read_zeek_logs (Docker Zeek logs)\n\n" + \
+                       f"❌ BLOCKED: {command}"
+        
         try:
             result = subprocess.run(
                 command,
@@ -547,6 +613,24 @@ class NetworkSecurityServer:
     
     def _run_powershell(self, command: str, timeout: int = 30) -> str:
         """Run PowerShell command"""
+        # SECURITY: Block host network commands in PowerShell
+        forbidden_commands = [
+            'get-netadapter', 'get-netipaddress', 'get-netipconfig',
+            'get-netroute', 'get-dnsclient', 'test-connection',
+            'get-netconnectionprofile', 'ipconfig', 'netstat', 'ping',
+            'test-netconnection', 'resolve-dnsname', 'get-dnsclientserveraddress'
+        ]
+        cmd_lower = command.lower().strip()
+        for forbidden in forbidden_commands:
+            if forbidden in cmd_lower:
+                return f"🚫 SECURITY BLOCKED: PowerShell network command '{forbidden}' is forbidden.\n" + \
+                       f"⚠️ You can ONLY access Docker network via WSL, not host Windows network.\n\n" + \
+                       f"✅ USE INSTEAD:\n" + \
+                       f"  - wsl_command: docker ps\n" + \
+                       f"  - wsl_command: docker network inspect bridge\n" + \
+                       f"  - docker_command: ps -a\n\n" + \
+                       f"❌ BLOCKED: {command}"
+        
         try:
             # Escape quotes for PowerShell
             ps_cmd = f'powershell.exe -NoProfile -Command "{command}"'
@@ -580,6 +664,31 @@ class NetworkSecurityServer:
     
     def _wsl_command(self, command: str, use_sudo: bool = False, timeout: int = 30) -> str:
         """Run command in WSL"""
+        # SECURITY: Only allow Docker-related commands in WSL
+        cmd_lower = command.lower().strip()
+        
+        # Allowed prefixes for Docker operations
+        allowed_prefixes = ['docker', 'cat /var/log', 'ls /var/log', 'tail /var/log', 'head /var/log']
+        is_allowed = any(cmd_lower.startswith(prefix) for prefix in allowed_prefixes)
+        
+        # Block host network commands
+        forbidden_commands = ['ifconfig', 'ip addr', 'ip route', 'ip link', 'ping', 'netstat', 'ss', 'arp', 'route', 'traceroute', 'nslookup', 'dig']
+        is_forbidden = any(forbidden in cmd_lower for forbidden in forbidden_commands)
+        
+        if is_forbidden or not is_allowed:
+            return f"🚫 SECURITY BLOCKED: WSL command must be Docker-related only.\n\n" + \
+                   f"✅ ALLOWED WSL COMMANDS:\n" + \
+                   f"  - docker ps\n" + \
+                   f"  - docker network inspect <network>\n" + \
+                   f"  - docker logs <container>\n" + \
+                   f"  - docker stats\n" + \
+                   f"  - cat/ls/tail /var/log/...\n\n" + \
+                   f"❌ FORBIDDEN (Host Network Access):\n" + \
+                   f"  - ifconfig, ip addr (host network info)\n" + \
+                   f"  - ping, netstat, ss (host connectivity)\n" + \
+                   f"  - arp, route (host routing tables)\n\n" + \
+                   f"❌ BLOCKED: {command}"
+        
         try:
             sudo_password = os.getenv("WSL_SUDO_PASSWORD", "")
             
@@ -762,6 +871,84 @@ chmod +x /tmp/mcp_script.sh"""
             return f"ERROR setting environment variable: {str(e)}"
     
     
+    def _read_zeek_logs(self, log_type: str = "all") -> str:
+        """Read current Zeek logs from WSL (running outside container on custom_net bridge)"""
+        try:
+            # Check if Zeek monitor is running on WSL
+            check_cmd = ["wsl", "bash", "-c", "pgrep -f zeek_monitor_wsl.sh"]
+            check_result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5)
+            
+            if check_result.returncode != 0:
+                return "⚠️ Zeek monitor is not running on WSL.\n\n" + \
+                       "Start it with: network/zeek/START_ZEEK_WSL.bat\n" + \
+                       "This will monitor all traffic on the custom_net Docker network."
+            
+            # Get ALL recent sessions from WSL /tmp/zeek_output
+            list_cmd = ["wsl", "bash", "-c", "ls -1td /tmp/zeek_output/session_* 2>/dev/null | head -10"]
+            
+            list_result = subprocess.run(
+                list_cmd,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if list_result.returncode != 0 or not list_result.stdout.strip():
+                return "No Zeek logs found yet.\n\n" + \
+                       "Zeek monitor is running but needs traffic to analyze.\n" + \
+                       "Make sure containers are connected to custom_net network."
+            
+            lines = list_result.stdout.strip().split('\n')
+            session_dirs = [line.strip() for line in lines if line.strip()]
+            
+            if not session_dirs:
+                return "No Zeek sessions available yet. Waiting for network traffic..."
+            
+            result = f"CURRENT ZEEK LOGS - Analyzing {len(session_dirs)} recent sessions\n{'='*80}\n\n"
+            
+            # Read ALL log files from ALL recent sessions
+            log_files = ["http.log", "conn.log", "dns.log", "files.log", "packet_filter.log"]
+            
+            for target_session in session_dirs:
+                session_name = target_session.split('/')[-1]
+                
+                for filename in log_files:
+                    log_path = f"{target_session}/{filename}"
+                    
+                    cat_cmd = ["wsl", "cat", log_path]
+                    
+                    cat_result = subprocess.run(
+                        cat_cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    
+                    if cat_result.returncode != 0:
+                        continue
+                    
+                    file_content = cat_result.stdout
+                    data_lines = [line for line in file_content.split('\n') if line and not line.startswith('#')]
+                    
+                    if not data_lines:
+                        continue
+                    
+                    result += f"\n{'='*80}\n{session_name}/{filename} ({len(data_lines)} entries)\n{'='*80}\n"
+                    result += file_content
+                    result += f"\n"
+            
+            if len(result) > 200:
+                return result
+            else:
+                return "Zeek logs exist but appear empty.\n\n" + \
+                       "This means no network traffic was captured yet on custom_net.\n" + \
+                       "Make sure your containers are running and connected to the network."
+            
+        except subprocess.TimeoutExpired:
+            return "ERROR: Timeout reading Zeek logs from WSL"
+        except Exception as e:
+            return f"ERROR reading Zeek logs: {str(e)}"
+    
     def _move_device_to_beelzebub(self, device_id: str, reason: str) -> str:
         """Move device from custom_net to honeypot_net (Beelzebub)"""
         try:
@@ -941,7 +1128,12 @@ chmod +x /tmp/mcp_script.sh"""
         print(f"🔧 DEBUG: Registered tools count: {tools_count}", file=sys.stderr)
         
         if hasattr(self.mcp, '_tools'):
-            print(f"🔧 DEBUG: Tool names: {list(self.mcp._tools.keys())[:5]}", file=sys.stderr)
+            all_tool_names = list(self.mcp._tools.keys())
+            print(f"🔧 DEBUG: ALL Tool names: {all_tool_names}", file=sys.stderr)
+            if 'read_zeek_logs' in all_tool_names:
+                print(f"🔧 DEBUG: ✅ read_zeek_logs IS REGISTERED!", file=sys.stderr)
+            else:
+                print(f"🔧 DEBUG: ❌ read_zeek_logs NOT FOUND!", file=sys.stderr)
         
         print("🔧 DEBUG: Starting mcp.run()...", file=sys.stderr)
         self.mcp.run()

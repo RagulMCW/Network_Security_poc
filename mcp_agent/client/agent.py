@@ -103,9 +103,9 @@ class MCPAgent:
         self.todos: List[TodoItem] = []
         self.current_plan: List[str] = []
         
-        # MCP Server
+        # MCP Server - Use correct absolute path
         if server_path is None:
-            server_path = "E:\\nos\\Network_Security_poc\\mcp_agent\\server\\server.py"
+            server_path = "E:\\Malware_detection_using_Aiagent\\Network_Security_poc\\mcp_agent\\server\\server.py"
         
         if not self.quiet:
             print(f"🔧 DEBUG: Server path: {server_path}")
@@ -158,7 +158,7 @@ class MCPAgent:
             print("🔧 DEBUG: Calling list_tools()...")
             tools_result = await self.mcp_client.list_tools()
             print(f"🔧 DEBUG: tools_result type: {type(tools_result)}")
-            print(f"🔧 DEBUG: tools_result: {tools_result}")
+            # print(f"🔧 DEBUG: tools_result: {tools_result}")
             
             if hasattr(tools_result, 'tools'):
                 self.tools = tools_result.tools
@@ -231,7 +231,7 @@ class MCPAgent:
         print("=" * 60)
 
     def _parse_plan_from_response(self, response_text: str) -> Tuple[List[str], List[Tuple[str, str]]]:
-        """Parse plan and TODOs from Claude's response."""
+        """Parse plan and TODOs from glm-4.5's response."""
         plan_steps = []
         todos = []
         
@@ -343,7 +343,7 @@ When the user asks a question:
         if user_input.startswith("/"):
             return await self._handle_slash_command(user_input)
         
-        # Build messages for Claude
+        # Build messages for glm-4.5
         messages = []
         
         # Add conversation history (keep last 10 exchanges)
@@ -362,7 +362,7 @@ When the user asks a question:
             tool_definitions.append(tool_def)
         
         if not self.quiet and tool_definitions:
-            print(f"\n🔧 DEBUG: Sending {len(tool_definitions)} tool definitions to Claude")
+            print(f"\n🔧 DEBUG: Sending {len(tool_definitions)} tool definitions to glm-4.5")
             print(f"🔧 DEBUG: Tool names: {[t['name'] for t in tool_definitions[:5]]}")
         
         try:
@@ -377,9 +377,9 @@ When the user asks a question:
                 if not self.quiet:
                     print(f"\n🔄 Iteration {iteration}/{max_iterations}")
                 
-                # Call Claude
+                # Call glm-4.5
                 response = self.anthropic_client.messages.create(
-                    model="glm-4.5",  # Fixed: using correct Claude model
+                    model="glm-4.5",  # Fixed: using correct glm-4.5 model
                     max_tokens=4096,
                     system=self._build_system_prompt(),
                     messages=messages,
@@ -412,7 +412,7 @@ When the user asks a question:
                 
                 # Display text response if any
                 if response_text and not self.quiet:
-                    print(f"\n💬 Claude says: {response_text[:200]}{'...' if len(response_text) > 200 else ''}")
+                    print(f"\n💬 glm-4.5 says: {response_text[:200]}{'...' if len(response_text) > 200 else ''}")
                 
                 # Parse plan on first iteration
                 if iteration == 1:
@@ -441,7 +441,7 @@ When the user asks a question:
                 # Execute tool calls
                 if tool_calls:
                     if not self.quiet:
-                        print(f"\n🔧 DEBUG: Claude requested {len(tool_calls)} tool call(s)")
+                        print(f"\n🔧 DEBUG: glm-4.5 requested {len(tool_calls)} tool call(s)")
                     
                     # Add assistant message with tool calls
                     assistant_message = {
@@ -491,7 +491,7 @@ When the user asks a question:
                     }
                     messages.append(user_message)
                     
-                    # Continue loop to get Claude's response to tool results
+                    # Continue loop to get glm-4.5's response to tool results
                     continue
                 
                 # If we get here without tool calls, break
@@ -555,7 +555,7 @@ Available Commands:
 - /clear     - Clear conversation history
 - /quit      - Exit the agent
 
-Regular queries are processed by Claude with tool access.
+Regular queries are processed by glm-4.5 with tool access.
 """
         
         elif cmd == "/clear":

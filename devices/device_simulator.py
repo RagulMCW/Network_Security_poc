@@ -18,33 +18,33 @@ from datetime import datetime
 DEVICE_ID = os.getenv('DEVICE_ID', 'device_001')
 DEVICE_TYPE = os.getenv('DEVICE_TYPE', 'generic')
 SERVER_URL = os.getenv('SERVER_URL', 'http://192.168.6.131:5002')
-REQUEST_INTERVAL = int(os.getenv('REQUEST_INTERVAL', '5'))
+REQUEST_INTERVAL = int(os.getenv('REQUEST_INTERVAL', '1'))
 
 # Device types and their behaviors
 DEVICE_TYPES = {
     'iot_sensor': {
         'data': ['temperature', 'humidity', 'pressure'],
-        'interval_range': (3, 10),
+        'interval_range': (1, 2),
         'payload_size': 'small'
     },
     'smartphone': {
         'data': ['location', 'battery', 'network_status'],
-        'interval_range': (5, 15),
+        'interval_range': (1, 2),
         'payload_size': 'medium'
     },
     'laptop': {
         'data': ['cpu_usage', 'memory_usage', 'disk_usage', 'network_traffic'],
-        'interval_range': (10, 30),
+        'interval_range': (1, 2),
         'payload_size': 'large'
     },
     'camera': {
         'data': ['motion_detected', 'recording_status', 'storage_used'],
-        'interval_range': (2, 8),
+        'interval_range': (1, 2),
         'payload_size': 'medium'
     },
     'generic': {
         'data': ['status', 'uptime', 'health'],
-        'interval_range': (5, 15),
+        'interval_range': (1, 2),
         'payload_size': 'small'
     }
 }

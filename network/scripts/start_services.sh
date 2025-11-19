@@ -75,6 +75,16 @@ echo "Starting HAProxy load balancer..."
 haproxy -f /app/src/config/haproxy.cfg &
 HAPROXY_PID=$!
 echo "HAProxy started (PID: ${HAPROXY_PID})"
+
+# Start Zeek Monitor
+echo "Starting Zeek monitor..."
+/app/zeek/monitor.sh > /app/zeek_logs/zeek_monitor.log 2>&1 &
+ZEEK_PID=$!
+echo "Zeek monitor started (PID: ${ZEEK_PID})"
+echo "  - Analyzing PCAP files every 5 seconds"
+echo "  - Logs: /app/zeek_logs/"
+echo "  - Keeping last 5 sessions"
+
 # Start Flask application
 echo "Starting Flask web server..."
 python3 /app/src/app/server.py &
@@ -87,6 +97,7 @@ echo "   SSH Server: port 22 (exposed as 2222 on host)"
 echo "   Web interface: http://localhost:8080"
 echo "   Direct Flask: http://localhost:5000"
 echo "   Packet captures: ${CAP_DIR}"
+echo "   Zeek logs: /app/zeek_logs/"
 echo "   SSH Logs: /var/log/auth.log"
 echo "========================================"
 echo ""
@@ -101,7 +112,7 @@ echo "========================================"
 cleanup() {
     echo ""
     echo "Shutting down services..."
-    kill ${TCPDUMP_PID} ${HAPROXY_PID} ${FLASK_PID} ${CLEANUP_PID} 2>/dev/null || true
+    kill ${TCPDUMP_PID} ${HAPROXY_PID} ${FLASK_PID} ${CLEANUP_PID} ${ZEEK_PID} 2>/dev/null || true
     echo "Cleanup complete"
     exit 0
 }

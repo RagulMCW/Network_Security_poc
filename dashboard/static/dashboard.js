@@ -113,6 +113,18 @@ async function refreshStatus() {
             }
         }
 
+        // Update malware attacker status
+        const malwareAttackerStatus = document.getElementById('malware-attacker-status');
+        if (malwareAttackerStatus) {
+            if (data.attackers.malware_running) {
+                malwareAttackerStatus.textContent = 'ACTIVE';
+                malwareAttackerStatus.className = 'status-badge status-on';
+            } else {
+                malwareAttackerStatus.textContent = 'OFF';
+                malwareAttackerStatus.className = 'status-badge status-off';
+            }
+        }
+
         // Update container count
         document.getElementById('stat-containers').textContent = data.all_containers.length;
 
@@ -1037,6 +1049,123 @@ async function viewSSHLogs() {
     } else {
         logsContainer.style.display = 'none';
     }
+}
+
+// Malware Attacker Control Functions
+async function startMalwareAttacker() {
+    showToast('Starting malware behavior simulator...', 'success');
+    try {
+        const response = await fetch('/api/malware_attacker/start', { method: 'POST' });
+        const data = await response.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        setTimeout(() => {
+            refreshStatus();
+            checkMalwareStatus();
+        }, 2000);
+    } catch (error) {
+        showToast('Error starting malware attacker', 'error');
+    }
+}
+
+async function stopMalwareAttacker() {
+    showToast('Stopping malware simulator and cleaning iptables...', 'success');
+    try {
+        const response = await fetch('/api/malware_attacker/stop', { method: 'POST' });
+        const data = await response.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        setTimeout(() => {
+            refreshStatus();
+            checkMalwareStatus();
+        }, 2000);
+    } catch (error) {
+        showToast('Error stopping malware attacker', 'error');
+    }
+}
+
+async function checkMalwareStatus() {
+    try {
+        const response = await fetch('/api/malware_attacker/status');
+        const data = await response.json();
+        
+        // Update main status badge
+        const statusBadge = document.getElementById('malware-attacker-status');
+        if (data.running) {
+            statusBadge.textContent = 'ACTIVE';
+            statusBadge.className = 'status-badge status-on';
+        } else {
+            statusBadge.textContent = 'OFF';
+            statusBadge.className = 'status-badge status-off';
+        }
+        
+        // Update individual behavior statuses
+        const behaviors = data.behaviors || {};
+        
+        const beaconStatus = document.getElementById('malware-beacon-status');
+        if (beaconStatus) {
+            beaconStatus.textContent = behaviors.c2_beacon === 'Active' ? '🟢 Active' : '⚫ Inactive';
+            beaconStatus.style.color = behaviors.c2_beacon === 'Active' ? '#10b981' : '#6b7280';
+        }
+        
+        const exfilStatus = document.getElementById('malware-exfil-status');
+        if (exfilStatus) {
+            exfilStatus.textContent = behaviors.exfiltration === 'Active' ? '🟢 Active' : '⚫ Inactive';
+            exfilStatus.style.color = behaviors.exfiltration === 'Active' ? '#10b981' : '#6b7280';
+        }
+        
+        const eicarStatus = document.getElementById('malware-eicar-status');
+        if (eicarStatus) {
+            eicarStatus.textContent = behaviors.eicar_upload === 'Active' ? '🟢 Active' : '⚫ Inactive';
+            eicarStatus.style.color = behaviors.eicar_upload === 'Active' ? '#10b981' : '#6b7280';
+        }
+        
+        const dnsStatus = document.getElementById('malware-dns-status');
+        if (dnsStatus) {
+            dnsStatus.textContent = behaviors.dns_dga === 'Active' ? '🟢 Active' : '⚫ Inactive';
+            dnsStatus.style.color = behaviors.dns_dga === 'Active' ? '#10b981' : '#6b7280';
+        }
+        
+    } catch (error) {
+        console.error('Error checking malware status:', error);
+    }
+}
+
+async function viewMalwareLogs() {
+    const logsContainer = document.getElementById('malware-logs-container');
+    
+    if (logsContainer.style.display === 'none') {
+        showToast('Loading malware logs...', 'info');
+        try {
+            const response = await fetch('/api/malware_attacker/logs');
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update all log sections
+                document.getElementById('malware-logs-output').textContent = data.container_logs;
+                document.getElementById('malware-beacon-logs').textContent = data.beacon_logs;
+                document.getElementById('malware-exfil-logs').textContent = data.exfil_logs;
+                document.getElementById('malware-eicar-logs').textContent = data.eicar_logs;
+                document.getElementById('malware-dns-logs').textContent = data.dns_logs;
+                
+                logsContainer.style.display = 'block';
+            } else {
+                showToast('Failed to load logs', 'error');
+            }
+        } catch (error) {
+            showToast('Error loading malware logs', 'error');
+        }
+    } else {
+        logsContainer.style.display = 'none';
+    }
+}
+
+function showMalwareLog(logType) {
+    // Hide all log sections
+    document.querySelectorAll('.malware-log-section').forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    // Show selected log section
+    document.getElementById(`malware-log-${logType}`).style.display = 'block';
 }
 
 // Monitor server control

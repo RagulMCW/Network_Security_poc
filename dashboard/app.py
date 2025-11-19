@@ -214,7 +214,8 @@ def get_status():
     # Check attackers (distinguish between DOS and SSH)
     dos_attacker_running = any(c['name'] == 'hping3-attacker' for c in containers)
     ssh_attacker_running = any(c['name'] == 'ssh-attacker' for c in containers)
-    attacker_running = dos_attacker_running or ssh_attacker_running
+    malware_attacker_running = any(c['name'] == 'malware-attacker' for c in containers)
+    attacker_running = dos_attacker_running or ssh_attacker_running or malware_attacker_running
     
     # Check network monitor (check both possible names)
     monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor'] for c in containers)
@@ -238,6 +239,7 @@ def get_status():
             'running': attacker_running,
             'dos_running': dos_attacker_running,
             'ssh_running': ssh_attacker_running,
+            'malware_running': malware_attacker_running,
             'containers': [c for c in containers if 'attacker' in c['name']]
         },
         'monitor': {
@@ -1562,6 +1564,96 @@ def get_ssh_attacker_logs():
         'success': True,
         'container_logs': container_logs['output'] if container_logs['success'] else 'Container not running',
         'summary_logs': summary_logs['output'] if summary_logs['success'] else 'No summary log'
+    })
+
+# ===== Malware Attacker Control =====
+
+@app.route('/api/malware_attacker/start', methods=['POST'])
+def start_malware_attacker():
+    """Start malware behavior simulation attacker"""
+    
+    # Ensure network exists
+    network_check = run_wsl_command('docker network ls | grep custom_net')
+    if not (network_check['success'] and 'custom_net' in network_check['output']):
+        return jsonify({
+            'success': False,
+            'message': 'Network does not exist. Create network first.'
+        })
+    
+    # Start malware attacker using docker compose
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker && docker compose up -d --build')
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'Malware Attacker started successfully' if result['success'] else result['error'],
+        'output': result['output']
+    })
+
+@app.route('/api/malware_attacker/stop', methods=['POST'])
+def stop_malware_attacker():
+    """Stop malware behavior simulation attacker"""
+    
+    # First, clean up iptables rules for the malware attacker (192.168.6.134)
+    cleanup_result = run_wsl_command('bash /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/cleanup_iptables.sh 192.168.6.134')
+    
+    # Then stop the container
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker && docker compose down')
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'Malware Attacker stopped and iptables cleaned up' if result['success'] else result['error']
+    })
+
+@app.route('/api/malware_attacker/logs', methods=['GET'])
+def get_malware_attacker_logs():
+    """Get malware attacker logs"""
+    
+    # Get container logs
+    container_logs = run_wsl_command('docker logs --tail 100 malware-attacker 2>&1')
+    
+    # Get individual behavior logs
+    beacon_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/beacon.log 2>/dev/null | tail -20 || echo "No beacon logs yet"')
+    exfil_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/exfil.log 2>/dev/null | tail -20 || echo "No exfiltration logs yet"')
+    eicar_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/eicar.log 2>/dev/null | tail -20 || echo "No EICAR logs yet"')
+    dns_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/dns_nxdomain.log 2>/dev/null | tail -20 || echo "No DNS logs yet"')
+    orchestrator_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/malware_attacker/logs/orchestrator.log 2>/dev/null | tail -20 || echo "No orchestrator logs yet"')
+    
+    return jsonify({
+        'success': True,
+        'container_logs': container_logs['output'] if container_logs['success'] else 'Container not running',
+        'beacon_logs': beacon_logs['output'],
+        'exfil_logs': exfil_logs['output'],
+        'eicar_logs': eicar_logs['output'],
+        'dns_logs': dns_logs['output'],
+        'orchestrator_logs': orchestrator_logs['output']
+    })
+
+@app.route('/api/malware_attacker/status', methods=['GET'])
+def get_malware_attacker_status():
+    """Get malware attacker container status"""
+    
+    # Check if container is running
+    status = run_wsl_command('docker ps -f name=malware-attacker --format "{{.Status}}"')
+    is_running = status['success'] and status['output'].strip() != ''
+    
+    # Get container IP if running
+    ip_address = '192.168.6.134'
+    if is_running:
+        ip_result = run_wsl_command('docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" malware-attacker')
+        if ip_result['success']:
+            ip_address = ip_result['output'].strip()
+    
+    return jsonify({
+        'success': True,
+        'running': is_running,
+        'status': status['output'].strip() if is_running else 'Not running',
+        'ip_address': ip_address,
+        'behaviors': {
+            'c2_beacon': 'Active' if is_running else 'Stopped',
+            'exfiltration': 'Active' if is_running else 'Stopped',
+            'eicar_upload': 'Active' if is_running else 'Stopped',
+            'dns_dga': 'Active' if is_running else 'Stopped'
+        }
     })
 
 # ===== Network Monitor Server Control =====

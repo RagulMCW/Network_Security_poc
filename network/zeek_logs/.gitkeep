@@ -1,0 +1,6 @@
+# Zeek logs will be stored here
+# Directory structure:
+# - current/       Active analysis sessions (last 5)
+# - archive/       Compressed old sessions
+# - processed/     Markers for processed PCAPs
+# - extracted/     Extracted files from traffic
