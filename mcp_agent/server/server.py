@@ -20,6 +20,7 @@ class NetworkSecurityServer:
         self.project_root = Path(__file__).parent.parent.parent
         self.network_dir = self.project_root / "network"
         self.analyze_bat = self.network_dir / "analyze_auto.bat"
+        self.malware_db_dir = self.project_root / "malware_db"
         
         self.mcp = FastMCP(
             name="Network Security Expert",
@@ -49,9 +50,13 @@ Monitor and analyze Docker network traffic for security threats and anomalies.
 
 📊 WHEN ANALYZING:
 1. Start with: read_zeek_logs tool
-2. Look for: Suspicious IPs, unusual ports, high connection rates, malware signatures
-3. Report: Clear findings with confidence levels
-4. Recommend: Actions to take
+2. Extract filenames from "📦 Extracted Files" section (just the filename, like: extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj)
+3. Look for: Suspicious IPs, unusual ports, high connection rates, malware signatures, EICAR markers
+4. When calling check_malware_hash or scan_with_yara:
+   - Pass ONLY the filename (auto-search feature will find it in latest sessions)
+   - Example: check_malware_hash("extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj")
+5. Report: Clear findings with confidence levels
+6. Recommend: Actions to take
 
 🎯 RESPONSE STYLE:
 - Be concise and professional
@@ -302,19 +307,19 @@ Monitor and analyze Docker network traffic for security threats and anomalies.
         # NETWORK SECURITY TOOLS
         # =======================================
         
-        @self.mcp.tool
-        def analyze_traffic() -> str:
-            """Analyze complete network status: connected devices, traffic statistics, threats, and anomalies.
+        # @self.mcp.tool
+        # def analyze_traffic() -> str:
+        #     """Analyze complete network status: connected devices, traffic statistics, threats, and anomalies.
             
-            This tool provides:
-            - All connected devices with IPs and status
-            - Traffic analysis (packet counts, protocols, top talkers)
-            - Security threats and attack detection
-            - Protocol distribution and network health
+        #     This tool provides:
+        #     - All connected devices with IPs and status
+        #     - Traffic analysis (packet counts, protocols, top talkers)
+        #     - Security threats and attack detection
+        #     - Protocol distribution and network health
             
-            Always call this FIRST when user asks anything about the network.
-            """
-            return self._run_analyze_bat()
+        #     Always call this FIRST when user asks anything about the network.
+        #     """
+        #     return self._run_analyze_bat()
         
         @self.mcp.tool
         def read_zeek_logs() -> str:
@@ -343,6 +348,62 @@ Monitor and analyze Docker network traffic for security threats and anomalies.
                 Status message indicating success or failure
             """
             return self._move_device_to_beelzebub(device_id, reason)
+        
+        @self.mcp.tool
+        def check_malware_hash(file_path: str, check_online: bool = False) -> str:
+            """Check if a file matches known malware signatures using hash databases.
+            
+            This tool:
+            1. Computes MD5, SHA1, SHA256 hashes of the file
+            2. Checks against local malware databases (MalwareBazaar, EICAR, custom)
+            3. Optionally queries online APIs for unknown hashes
+            4. Returns threat analysis with malware family, tags, and severity
+            
+            CRITICAL - Path Usage:
+            When you see extracted files in read_zeek_logs() output, construct the FULL path like this:
+            
+            read_zeek_logs() shows:
+              📦 session_20251119_114759 (Created: 2025-11-19 11:47:59)
+              📦 Extracted Files: 1 files
+              📄 extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj (68B) ⚠️ EICAR!
+            
+            Build path: {project_root} / "network" / "zeek_logs" / "session_20251119_114759" / "extracted_files" / "extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj"
+            
+            Args:
+                file_path: Use filename only and tool will auto-search in latest zeek sessions.
+                    Example: "extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj"
+                    
+                    Or provide full path (if you prefer):
+                    Example: "E:\\...\\zeek_logs\\session_20251119_114759\\extracted_files\\extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj"
+                    
+                check_online: If True, query online APIs for unknown hashes (default: False)
+            
+            Returns:
+                - File hashes (MD5, SHA1, SHA256)
+                - Database matches (malware family, tags, severity)
+                - Threat level (CLEAN, SUSPICIOUS, MALWARE, TEST_FILE)
+                - Threat score (0-100)
+                - Recommended action
+            """
+            return self._check_malware_hash(file_path, check_online)
+        
+        @self.mcp.tool
+        def scan_with_yara(file_path: str, rule_name: str = "all") -> str:
+            """Scan a file using YARA rules for content-based malware detection.
+            
+            YARA rules detect malware by analyzing file content, patterns, and behaviors
+            rather than just hashes. This catches polymorphic malware and variants.
+            
+            Args:
+                file_path: Filename from read_zeek_logs() output (auto-searches latest sessions).
+                    Example: "extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj"
+                    
+                rule_name: YARA rule to use ("all", "eicar", "suspicious_http", or specific rule)
+            
+            Returns:
+                YARA scan results with matched rules and descriptions
+            """
+            return self._scan_with_yara(file_path, rule_name)
 
     def _run_analyze_bat(self) -> str:
         """Run analyze_auto.bat and return terminal output"""
@@ -1124,6 +1185,260 @@ chmod +x /tmp/mcp_script.sh"""
             return "ERROR: Operation timeout"
         except Exception as e:
             return f"ERROR: {str(e)}"
+    
+    # =======================================
+    # MALWARE DETECTION IMPLEMENTATIONS
+    # =======================================
+    
+    def _resolve_file_path(self, file_path: str) -> Path:
+        """Smart file path resolution - handles partial paths, filenames, Linux paths, etc."""
+        try:
+            # Try direct path first
+            p = Path(file_path)
+            if p.exists() and p.is_file():
+                return p
+            
+            # Extract filename from path
+            filename = p.name if p.name else file_path
+            
+            # Search in zeek_logs extracted_files (most recent first)
+            zeek_logs_dir = self.network_dir / "zeek_logs"
+            
+            if zeek_logs_dir.exists():
+                # Get all session directories sorted by modification time (newest first)
+                session_dirs = sorted(
+                    [d for d in zeek_logs_dir.glob("session_*") if d.is_dir()],
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True
+                )
+                
+                # Search in each session's extracted_files
+                for session_dir in session_dirs:
+                    extracted_dir = session_dir / "extracted_files"
+                    if extracted_dir.exists():
+                        # Try exact filename match
+                        candidate = extracted_dir / filename
+                        if candidate.exists():
+                            return candidate
+                        
+                        # Try pattern matching if filename has wildcards or partial match
+                        for extracted_file in extracted_dir.glob("*"):
+                            if filename in extracted_file.name or extracted_file.name in filename:
+                                return extracted_file
+            
+            # If still not found, try current working directory
+            cwd = Path.cwd()
+            cwd_candidate = cwd / filename
+            if cwd_candidate.exists():
+                return cwd_candidate
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error resolving path: {e}", file=sys.stderr)
+            return None
+    
+    def _check_malware_hash(self, file_path: str, check_online: bool = False) -> str:
+        """Check file hash against malware databases"""
+        try:
+            # Import hash checker
+            import sys
+            sys.path.insert(0, str(self.malware_db_dir / "scripts"))
+            from check_hash import MalwareHashChecker
+            
+            # Initialize checker
+            db_dir = self.malware_db_dir / "hash_databases"
+            checker = MalwareHashChecker(db_dir=str(db_dir))
+            
+            # Smart path resolution
+            file_path_obj = self._resolve_file_path(file_path)
+            
+            if not file_path_obj:
+                return f"❌ ERROR: File not found\n\n" + \
+                       f"Search query: {file_path}\n" + \
+                       f"\n💡 TIP: When reading zeek logs, extract the FULL Windows path from extracted_files section.\n" + \
+                       f"Look for paths like: E:\\...\\zeek_logs\\session_*\\extracted_files\\extract-*"
+            
+            # Check file
+            result = checker.check_file(str(file_path_obj), check_online=check_online)
+            
+            # Format output
+            if result["status"] == "error":
+                return f"❌ ERROR: {result['message']}"
+            
+            output = []
+            output.append("="*70)
+            output.append("🔍 MALWARE HASH CHECK RESULTS")
+            output.append("="*70)
+            output.append(f"\n📄 File: {result['file_path']}")
+            output.append(f"📊 Size: {result['file_size']} bytes")
+            
+            # Hashes
+            output.append(f"\n🔑 File Hashes:")
+            for hash_type, hash_value in result["hashes"].items():
+                output.append(f"  {hash_type.upper()}: {hash_value}")
+            
+            # Matches
+            matches = result.get("matches", [])
+            output.append(f"\n🎯 Database Matches: {len(matches)}")
+            
+            if matches:
+                output.append("\n⚠️ THREAT DETECTED!\n")
+                for i, match in enumerate(matches, 1):
+                    output.append(f"Match #{i}:")
+                    output.append(f"  Database: {match.get('database', 'Unknown')}")
+                    output.append(f"  Hash Type: {match.get('hash_type', 'Unknown').upper()}")
+                    
+                    if 'signature' in match:
+                        output.append(f"  Malware Family: {match['signature']}")
+                    if 'tags' in match and match['tags']:
+                        output.append(f"  Tags: {match['tags']}")
+                    if 'severity' in match:
+                        output.append(f"  Severity: {match['severity']}")
+                    if 'file_type' in match and match['file_type']:
+                        output.append(f"  File Type: {match['file_type']}")
+                    if 'first_seen' in match and match['first_seen']:
+                        output.append(f"  First Seen: {match['first_seen']}")
+                    output.append("")
+            else:
+                output.append("\n✅ No matches found in local databases")
+            
+            # Online check results
+            if "online_check" in result:
+                online = result["online_check"]
+                output.append(f"\n🌐 Online Check ({online.get('source', 'Unknown')}):")
+                if online.get("found"):
+                    output.append("  ⚠️ Hash found in online database!")
+                    if "data" in online:
+                        output.append(f"  Data: {json.dumps(online['data'], indent=2)}")
+                elif "error" in online:
+                    output.append(f"  ⚠️ Error: {online['error']}")
+                else:
+                    output.append("  ✅ Hash not found online")
+            
+            # Threat assessment
+            output.append(f"\n🎚️ Threat Assessment:")
+            output.append(f"  Threat Level: {result['threat_level']}")
+            output.append(f"  Threat Score: {result['threat_score']}/100")
+            
+            # Recommendations
+            output.append(f"\n💡 Recommended Action:")
+            if result['threat_level'] == "MALWARE":
+                output.append("  🚨 QUARANTINE IMMEDIATELY - Known malware detected!")
+                output.append("  🔒 Isolate source device to honeypot network")
+                output.append("  📝 Log incident for forensic analysis")
+            elif result['threat_level'] == "TEST_FILE":
+                output.append("  ℹ️ EICAR test file detected (not real malware)")
+                output.append("  ✅ Safe to ignore if this is a security test")
+            elif result['threat_level'] == "SUSPICIOUS":
+                output.append("  ⚠️ Monitor - Suspicious patterns detected")
+                output.append("  🔍 Perform additional YARA rule scanning")
+            else:
+                output.append("  ✅ File appears clean")
+                output.append("  💭 Consider YARA scanning for deeper analysis")
+            
+            output.append("="*70)
+            
+            return "\n".join(output)
+            
+        except ImportError as e:
+            return f"❌ ERROR: Malware database module not found.\n" + \
+                   f"Run: cd malware_db/scripts && python update_malwarebazaar.py\n" + \
+                   f"Details: {str(e)}"
+        except Exception as e:
+            import traceback
+            return f"❌ ERROR checking malware hash: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+    
+    def _scan_with_yara(self, file_path: str, rule_name: str = "all") -> str:
+        """Scan file with YARA rules"""
+        try:
+            # Check if yara-python is installed
+            try:
+                import yara
+            except ImportError:
+                return "❌ ERROR: yara-python not installed\n\n" + \
+                       "Install with: pip install yara-python\n" + \
+                       "Then download rules: cd malware_db/scripts && python update_yara_rules.py"
+            
+            yara_dir = self.malware_db_dir / "yara_rules"
+            
+            if not yara_dir.exists():
+                return "❌ ERROR: YARA rules directory not found\n\n" + \
+                       "Download rules: cd malware_db/scripts && python update_yara_rules.py"
+            
+            # Smart path resolution
+            file_path_obj = self._resolve_file_path(file_path)
+            
+            if not file_path_obj:
+                return f"❌ ERROR: File not found\n\n" + \
+                       f"Search query: {file_path}\n" + \
+                       f"\n💡 TIP: When reading zeek logs, extract the FULL Windows path from extracted_files section."
+            
+            # Determine which rules to load
+            if rule_name == "all":
+                # Try compiled rules first
+                compiled_file = yara_dir / "compiled_rules.yarc"
+                if compiled_file.exists():
+                    rules = yara.load(str(compiled_file))
+                else:
+                    # Load index file
+                    index_file = yara_dir / "compiled_rules.yar"
+                    if index_file.exists():
+                        rules = yara.compile(filepath=str(index_file))
+                    else:
+                        return "❌ ERROR: No YARA rules found\n\n" + \
+                               "Download rules: cd malware_db/scripts && python update_yara_rules.py"
+            else:
+                # Load specific rule
+                rule_file = yara_dir / "custom" / f"{rule_name}.yar"
+                if not rule_file.exists():
+                    return f"❌ ERROR: Rule file not found: {rule_file}"
+                rules = yara.compile(filepath=str(rule_file))
+            
+            # Scan file
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                return f"❌ ERROR: File not found: {file_path}"
+            
+            matches = rules.match(str(file_path_obj))
+            
+            # Format output
+            output = []
+            output.append("="*70)
+            output.append("📜 YARA SCAN RESULTS")
+            output.append("="*70)
+            output.append(f"\n📄 File: {file_path}")
+            output.append(f"🎯 Rules: {rule_name}")
+            output.append(f"\n🔍 Matches Found: {len(matches)}")
+            
+            if matches:
+                output.append("\n⚠️ YARA RULES TRIGGERED!\n")
+                for i, match in enumerate(matches, 1):
+                    output.append(f"Match #{i}: {match.rule}")
+                    
+                    if match.meta:
+                        output.append("  Metadata:")
+                        for key, value in match.meta.items():
+                            output.append(f"    {key}: {value}")
+                    
+                    if match.strings:
+                        output.append("  Matched Strings:")
+                        for string_match in match.strings[:5]:  # Show first 5
+                            output.append(f"    {string_match}")
+                        if len(match.strings) > 5:
+                            output.append(f"    ... and {len(match.strings) - 5} more")
+                    
+                    output.append("")
+            else:
+                output.append("\n✅ No YARA rules matched")
+            
+            output.append("="*70)
+            
+            return "\n".join(output)
+            
+        except Exception as e:
+            import traceback
+            return f"❌ ERROR scanning with YARA: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
     
     def run(self):
         """Run the FastMCP server."""

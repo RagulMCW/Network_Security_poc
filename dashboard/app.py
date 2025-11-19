@@ -2214,7 +2214,7 @@ def agent_query():
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=120,
+            timeout=120 ,
             cwd=os.path.join(BASE_DIR, 'mcp_agent', 'client'),
             env=env
         )
