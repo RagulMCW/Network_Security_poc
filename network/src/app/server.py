@@ -298,13 +298,58 @@ def backup_sync():
 
 @app.route('/api/files/upload', methods=['POST'])
 def files_upload():
-    """Malware file upload endpoint (disguised as file upload)"""
+    """Malware file upload endpoint - Receives REAL binary files for Zeek extraction"""
     source_ip = request.remote_addr
-    data = request.get_json(force=True, silent=True) or {}
     user_agent = request.headers.get('User-Agent', '')
-    filename = data.get('filename', 'unknown')
-    print(f"[SUSPICIOUS] File upload from {source_ip} | File: {filename} | UA: {user_agent}")
-    return jsonify({"status": "uploaded", "file_id": "xyz789"}), 200
+    content_type = request.headers.get('Content-Type', '')
+    content_length = request.content_length or 0
+    
+    # Get filename from headers or form data
+    filename = request.headers.get('X-Filename', 'unknown')
+    original_hash = request.headers.get('X-Original-Hash', 'unknown')
+    
+    # Log the incoming binary file upload
+    print(f"[MALWARE UPLOAD] Binary file from {source_ip}")
+    print(f"  Filename: {filename}")
+    print(f"  Content-Type: {content_type}")
+    print(f"  Size: {content_length} bytes ({content_length/1024/1024:.2f} MB)")
+    print(f"  Original Hash: {original_hash}")
+    print(f"  User-Agent: {user_agent}")
+    
+    # Consume the binary data (important for Zeek to capture it)
+    # Save to disk for hash verification
+    binary_data = request.get_data()
+    
+    # Save uploaded file for verification
+    upload_dir = "/app/uploaded_malware"
+    os.makedirs(upload_dir, exist_ok=True)
+    saved_path = os.path.join(upload_dir, filename)
+    
+    with open(saved_path, 'wb') as f:
+        f.write(binary_data)
+    
+    # Calculate hash of received file
+    import hashlib
+    sha256 = hashlib.sha256()
+    sha256.update(binary_data)
+    received_hash = sha256.hexdigest()
+    
+    print(f"  Received: {len(binary_data)} bytes")
+    print(f"  Saved to: {saved_path}")
+    print(f"  Received Hash: {received_hash}")
+    print(f"  Expected Hash: {original_hash}")
+    print(f"  Hash Match: {received_hash == original_hash}")
+    print(f"  First 100 bytes (hex): {binary_data[:100].hex()}")
+    
+    # Return success so the transfer completes
+    # Zeek captures the ENTIRE HTTP request including the binary body
+    return jsonify({
+        "status": "received", 
+        "file_id": "malware_sample_001",
+        "size": len(binary_data),
+        "filename": filename,
+        "message": "Binary file received - Zeek is extracting from HTTP stream"
+    }), 200
 
 # Legacy malware endpoints (keep for backward compatibility)
 @app.route('/api/c2/beacon', methods=['POST'])

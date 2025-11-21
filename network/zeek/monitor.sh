@@ -1,106 +1,73 @@
 #!/bin/bash
-# Zeek Network Monitor for Docker Networks
-# Captures and analyzes network traffic from Docker bridge interface
-# Version: 1.0
 
-set +e
-export PATH=/opt/zeek/bin:$PATH
+# Zeek Network Monitor (Auto-Rotation Mode)
+# Rotates sessions every 2 seconds, keeps last 5 sessions.
 
-# Configuration
-NETWORK_NAME="custom_net"
-OUTPUT_DIR="/tmp/zeek_output"
-WINDOWS_DIR="/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/network/zeek_logs"
-PCAP_DIR="/tmp/zeek_pcaps"
-PROCESSED_FILE="/tmp/zeek_processed.txt"
+INTERFACE="eth0"
+ZEEK_LOGS_DIR="/app/zeek_logs"
+DURATION=10 # Seconds per session
 MAX_SESSIONS=5
 
-log_message() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-}
+echo "Starting Zeek Monitor in Auto-Rotation Mode..."
+echo "Interface: $INTERFACE"
+echo "Session Duration: $DURATION seconds"
+echo "Max Sessions: $MAX_SESSIONS"
 
-validate_network() {
-    if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
-        log_message "ERROR: Network '$NETWORK_NAME' not found"
-        exit 1
-    fi
-    
-    BRIDGE_IFACE=$(docker network inspect "$NETWORK_NAME" -f '{{.Id}}' | cut -c1-12)
-    BRIDGE_NAME="br-${BRIDGE_IFACE}"
-    
-    if ! ip link show "$BRIDGE_NAME" &>/dev/null; then
-        log_message "ERROR: Bridge interface '$BRIDGE_NAME' not found"
-        exit 1
-    fi
-    
-    log_message "Monitoring: $NETWORK_NAME ($BRIDGE_NAME)"
-}
-
-setup_directories() {
-    mkdir -p "$OUTPUT_DIR" "$PCAP_DIR" "$WINDOWS_DIR"
-    touch "$PROCESSED_FILE"
-}
+# Ensure base directory exists
+mkdir -p "$ZEEK_LOGS_DIR"
 
 cleanup_old_sessions() {
-    local wsl_count=$(ls -1d "$OUTPUT_DIR"/session_* 2>/dev/null | wc -l)
-    local win_count=$(ls -1d "$WINDOWS_DIR"/session_* 2>/dev/null | wc -l)
+    echo "Cleaning up old sessions (keeping last $MAX_SESSIONS)..."
+    # List sessions, sort by time (oldest first), head to get the ones to delete
+    # We use ls -1dt to sort by time (newest first), then tail to get the oldest
     
-    [ "$wsl_count" -gt "$MAX_SESSIONS" ] && ls -1td "$OUTPUT_DIR"/session_* | tail -n +$((MAX_SESSIONS + 1)) | xargs rm -rf 2>/dev/null
-    [ "$win_count" -gt "$MAX_SESSIONS" ] && ls -1td "$WINDOWS_DIR"/session_* | tail -n +$((MAX_SESSIONS + 1)) | xargs rm -rf 2>/dev/null
-}
-
-start_tcpdump() {
-    if ! pgrep -f "tcpdump.*$BRIDGE_NAME" >/dev/null; then
-        tcpdump -i "$BRIDGE_NAME" -s 0 -G 2 -w "$PCAP_DIR/capture_%Y%m%d_%H%M%S.pcap" not port 22 >/dev/null 2>&1 &
-        log_message "tcpdump started (PID: $!)"
-    fi
-}
-
-process_pcap() {
-    local pcap="$1"
-    local timestamp=$(date '+%Y%m%d_%H%M%S')
-    local session_dir="$OUTPUT_DIR/session_$timestamp"
-    local script_dir="$(dirname "$(readlink -f "$0")")"
+    # Count current sessions
+    COUNT=$(ls -1d "$ZEEK_LOGS_DIR"/session_* 2>/dev/null | wc -l)
     
-    mkdir -p "$session_dir"
-    log_message "Analyzing: $(basename $pcap)"
-    
-    # Use custom Zeek script if available, otherwise use default
-    if [ -f "$script_dir/local.zeek" ]; then
-        cd "$session_dir" && zeek -C -r "$pcap" "$script_dir/local.zeek" 2>&1 | grep -v "warning" || true
-    else
-        cd "$session_dir" && zeek -C -r "$pcap" 2>/dev/null || true
-    fi
-    
-    if [ $(ls -1 "$session_dir"/*.log 2>/dev/null | wc -l) -gt 0 ]; then
-        cp -r "$session_dir" "$WINDOWS_DIR/session_$timestamp" 2>/dev/null || true
-        log_message "Session created: session_$timestamp"
-    fi
-    
-    echo "$pcap" >> "$PROCESSED_FILE"
-}
-
-monitor_loop() {
-    log_message "Starting continuous monitoring"
-    
-    while true; do
-        start_tcpdump
+    if [ "$COUNT" -gt "$MAX_SESSIONS" ]; then
+        REMOVE_COUNT=$((COUNT - MAX_SESSIONS))
+        echo "Found $COUNT sessions. Removing oldest $REMOVE_COUNT..."
         
-        mapfile -t pcap_files < <(find "$PCAP_DIR" -name "*.pcap" -type f 2>/dev/null || true)
-        
-        for pcap in "${pcap_files[@]}"; do
-            [ -f "$pcap" ] || continue
-            grep -Fxq "$pcap" "$PROCESSED_FILE" 2>/dev/null && continue
-            
-            sleep 1
-            process_pcap "$pcap"
+        # Get oldest sessions to remove
+        ls -1dt "$ZEEK_LOGS_DIR"/session_* | tail -n "$REMOVE_COUNT" | while read -r DIR; do
+            echo "Removing old session: $DIR"
+            rm -rf "$DIR"
         done
-        
-        cleanup_old_sessions
-        sleep 2
-    done
+    fi
 }
 
-# Main execution
-validate_network
-setup_directories
-monitor_loop
+while true; do
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    SESSION_DIR="$ZEEK_LOGS_DIR/session_$TIMESTAMP"
+    
+    echo "----------------------------------------"
+    echo "Starting new session: $SESSION_DIR"
+    mkdir -p "$SESSION_DIR"
+    
+    # Start Zeek in the background
+    # We use -i for interface and write logs to the session directory
+    cd "$SESSION_DIR"
+    
+    echo "Capturing for $DURATION seconds..."
+    # Start Zeek as a background process
+    # Added -C to ignore checksum errors (fixes missing logs in Docker/Virtual environments)
+    # Use the custom local.zeek script at /app/zeek/local.zeek
+    /opt/zeek/bin/zeek -C -i "$INTERFACE" /app/zeek/local.zeek "Site::local_nets={192.168.0.0/16}" &
+    ZEEK_PID=$!
+    
+    # Wait for the specified duration
+    sleep "$DURATION"
+    
+    # Stop Zeek
+    echo "Stopping Zeek (PID: $ZEEK_PID)..."
+    kill "$ZEEK_PID" 2>/dev/null
+    wait "$ZEEK_PID" 2>/dev/null
+    
+    # Ensure all logs are flushed/moved if Zeek didn't write them directly (Zeek writes to CWD)
+    # Since we cd'd into SESSION_DIR, logs should be there.
+    
+    # Cleanup old sessions
+    cleanup_old_sessions
+    
+    echo "Session $TIMESTAMP completed."
+done

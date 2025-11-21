@@ -1,186 +1,103 @@
-# Network Security POC - AI-Powered Malware Detection
+# Network Security & Malware Detection System
 
-A complete network security testing and monitoring platform using Zeek IDS, containerized simulations, and AI-powered threat analysis.
+A comprehensive Proof of Concept (POC) for detecting malware, analyzing network traffic, and automating responses using Zeek, Docker, and AI agents.
 
-## System Architecture
+##  System Architecture
 
-```
-Docker Network (custom_net: 192.168.6.0/24)
-├── Devices (192.168.6.10-15) ────────┐
-├── Malware (192.168.6.200) ──────────┤
-└── Monitor (192.168.6.131) ←─────────┘
-         │
-         ↓
-    WSL Host (Zeek Monitor)
-    Captures bridge traffic
-         │
-         ↓
-    Windows (zeek_logs/)
-    Stores session logs
-         │
-         ↓
-    MCP Agent (AI Analysis)
-    Detects threats
-```
+The system simulates a production network where devices and attackers interact. Traffic is captured, analyzed by Zeek, and visualized on a dashboard.
 
-## Components
+`mermaid
+graph TD
+    subgraph 'Attacker Network'
+        A[Malware Attacker] -->|Sends Malware/EICAR| B(Network Monitor)
+        C[DoS Attacker] -->|SYN Flood| B
+    end
 
-### 1. Zeek Network Monitor
-**Location:** `network/zeek/`
-- START.bat - Start monitoring
-- STOP.bat - Stop monitoring  
-- zeek_monitor.sh - Main script
-- README.md - Documentation
+    subgraph 'Production Network'
+        D[IoT Devices] -->|Normal Traffic| B
+    end
 
-**Features:** Real-time packet capture, generates logs every 2-3 seconds, auto-copies to Windows
+    subgraph 'Detection System'
+        B -->|Captures Traffic| E[tcpdump]
+        E -->|PCAP Files| F[Zeek Monitor]
+        F -->|Analyzes| G[Zeek Logs]
+        G -->|Parses| H[Dashboard / AI Agent]
+    end
 
-### 2. Device Simulators
-**Location:** `devices/`
-- manage_devices.bat - Fleet management
-- device_simulator.py - Clean code
-- 6 virtual devices sending traffic every 1-2 seconds
+    subgraph 'Response'
+        H -->|Detects Threat| I[Firewall / IPTables]
+        I -->|Redirects| J[Honeypot]
+    end
+``n
+##  Key Components
 
-### 3. Malware Simulator
-**Location:** `attackers/malware_attacker/`
-- START.bat, STOP.bat, LOGS.bat
-- malware_simulator.sh - All behaviors
-- C2 Beacon, Data Exfil, EICAR, DNS attacks
+### 1. Network Monitor (Zeek)
+- **Role:** The core analysis engine.
+- **Function:** Captures all traffic on the bridge network using tcpdump.
+- **Analysis:** Processes PCAP files with Zeek to generate logs (conn.log, http.log, files.log).
+- **Customization:** Uses a custom local.zeek script to extract file hashes (X-Original-Hash) and detect EICAR signatures.
 
-### 4. MCP Agent
-**Location:** `mcp_agent/`
-- RUN_AGENT.bat - Start AI analysis
-- Reads Zeek logs, detects threats
+### 2. Malware Attacker
+- **Role:** Simulates a compromised host or external attacker.
+- **Behavior:** 
+    - Sends malware samples (e.g., EICAR, dummy binaries) every 3 seconds.
+    - Simulates C2 (Command & Control) beacons.
+    - Simulates Data Exfiltration.
+- **Mechanism:** Uses send_malware_sample.py to inject custom headers for tracking.
 
-## Quick Start
+### 3. Dashboard
+- **Role:** Visualization and Control Center.
+- **Features:**
+    - Real-time traffic monitoring.
+    - Attack detection alerts.
+    - Controls to start/stop attackers and the honeypot.
+    - View raw Zeek logs.
 
-```cmd
-REM 1. Start devices
-cd devices
-manage_devices.bat create 6
+### 4. Honeypot (Beelzebub)
+- **Role:** Trap for malicious actors.
+- **Function:** When an attack is detected, the system can redirect the attacker's traffic to this isolated container to study their behavior without risking the production network.
 
-REM 2. Start Zeek monitor
-cd network\zeek
-START.bat
+##  Project Structure
 
-REM 3. Start malware simulator
-cd attackers\malware_attacker
-START.bat
+``nNetwork_Security_poc/
+ attackers/              # Docker containers for attack simulation
+    malware_attacker/   # Sends malware samples
+    dos_attacker/       # Performs DoS attacks
+ dashboard/              # Flask-based web UI
+ network/                # Zeek monitor configuration
+    zeek/               # Zeek scripts (local.zeek, monitor.sh)
+    zeek_logs/          # Generated logs
+ honey_pot/              # Beelzebub honeypot setup
+ docs/                   # Documentation
+ scripts/                # Utility scripts for setup/maintenance
+``n
+##  Usage
 
-REM 4. Run AI analysis
-cd mcp_agent
-RUN_AGENT.bat
-```
+### Prerequisites
+- Docker & Docker Compose
+- WSL2 (if on Windows)
 
-## System Workflow
+### Quick Start
+1. **Start the System:**
+   `ash
+   cd Network_Security_poc
+   ./scripts/start_all.sh
+   ` 
 
-```
-Traffic Generation → Network Capture → Log Generation → AI Analysis
+2. **Access Dashboard:**
+   Open http://localhost:5001 in your browser.
 
-Devices send requests (1-2s) ──┐
-Malware sends attacks (15-40s) ─┤
-                                │
-                                ↓
-                    Zeek captures bridge traffic
-                    tcpdump rotates every 2 seconds
-                                │
-                                ↓
-                    Zeek analyzes PCAP files
-                    Generates protocol logs
-                                │
-                                ↓
-                    Auto-copy to Windows
-                    zeek_logs/session_TIMESTAMP/
-                                │
-                                ↓
-                    MCP Agent reads logs
-                    Claude AI detects threats
-```
+3. **Simulate Attack:**
+   - Go to the Dashboard.
+   - Click **'Start Malware Attacker'**.
+   - Watch the **Zeek Logs** panel for files.log entries showing the detected hashes.
 
-## Current Status
+##  Log Analysis
+Zeek logs are stored in network/zeek_logs/.
+- **files.log:** Details of transferred files (MD5, SHA1, SHA256).
+- **http.log:** Web traffic details.
+- **conn.log:** All TCP/UDP connections.
 
-Running Components:
-- net-monitor-wan (192.168.6.131:5002, 8082, 8415)
-- vdevice_001-006 (192.168.6.10-15)
-- malware_attacker (192.168.6.200)
-- zeek_monitor (WSL Host)
-
-## File Structure
-
-```
-Network_Security_poc/
-├── README.md                    (This file)
-├── attackers/
-│   └── malware_attacker/        (7 files - Clean)
-├── devices/                     (Fleet management)
-├── network/
-│   ├── zeek/                    (4 files - Clean)
-│   └── zeek_logs/               (Auto-generated)
-├── mcp_agent/                   (AI analysis)
-├── dashboard/                   (Port 8082)
-└── scripts/                     (Utilities)
-```
-
-## Professional Code Standards
-
-Improvements Made:
-- Zeek: 8 files → 4 files (50% reduction)
-- Malware: 14 files → 7 files (50% reduction)  
-- Consolidated scripts
-- Clean documentation
-- Simple commands
-- Error handling
-
-## Testing
-
-```cmd
-REM Check traffic
-wsl docker logs vdevice_001 --tail 10
-
-REM View Zeek logs
-cd network\zeek_logs
-dir /od
-
-REM Check malware activity
-cd attackers\malware_attacker
-LOGS.bat
-
-REM AI analysis
-cd mcp_agent
-RUN_AGENT.bat
-```
-
-## Performance
-
-- CPU: ~10% total
-- RAM: ~500 MB total
-- Network: ~10 requests/second
-- Logs: ~3 MB per session
-
-## Troubleshooting
-
-```cmd
-REM Restart Zeek
-cd network\zeek
-STOP.bat && START.bat
-
-REM Recreate devices
-cd devices
-manage_devices.bat delete all
-manage_devices.bat create 6
-
-REM Check containers
-wsl docker ps
-```
-
-## Quick Reference
-
-Essential Commands:
-- Start: See Quick Start section
-- Status: `wsl docker ps`
-- Logs: `network/zeek_logs/`
-- Dashboard: http://localhost:8082
-- API: http://localhost:5002
-
----
-
-Status: OPERATIONAL | Components: 4 | Containers: 8 | Clean Code: YES
+##  Security Features
+- **Hash Extraction:** The system extracts X-Original-Hash headers to verify file integrity even if the transfer is incomplete.
+- **Automated Isolation:** Capable of rewriting iptables rules to quarantine attackers.

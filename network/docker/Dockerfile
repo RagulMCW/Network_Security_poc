@@ -30,7 +30,8 @@ RUN echo 'deb http://download.opensuse.org/repositories/security:/zeek/xUbuntu_2
     wget -qO - https://download.opensuse.org/repositories/security:/zeek/xUbuntu_22.04/Release.key \
     | gpg --dearmor > /etc/apt/trusted.gpg.d/security_zeek.gpg && \
     apt-get update && \
-    apt-get install -y zeek && \
+    apt-get install -y --no-install-recommends zeek zeek-core zeekctl || \
+    (apt-get install -y --fix-missing zeek zeek-core zeekctl || true) && \
     rm -rf /var/lib/apt/lists/*
 
 # Add Zeek to PATH
@@ -59,8 +60,8 @@ WORKDIR /app
 COPY src/ /app/src/
 COPY scripts/ /app/scripts/
 
-# Copy Zeek monitor script
-COPY zeek/monitor.sh /app/zeek/monitor.sh
+# Copy ALL Zeek configuration files and scripts
+COPY zeek/ /app/zeek/
 
 # Install Python dependencies
 RUN pip3 install flask scapy

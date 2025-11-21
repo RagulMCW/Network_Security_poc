@@ -12,7 +12,9 @@ services:
     volumes:
       - ./captures:/captures
       - ./src:/app/src
-      # Note: Zeek logs are stored in /tmp/zeek_output inside container
+      - ./zeek_logs:/app/zeek_logs
+      - ./zeek:/app/zeek
+      # Note: Zeek logs are stored in /app/zeek_logs inside container
       # Use 'docker exec network-monitor cat /tmp/zeek_output/...' to access logs
     ports:
       - "5000:5000"   # Flask API

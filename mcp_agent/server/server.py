@@ -52,7 +52,7 @@ Monitor and analyze Docker network traffic for security threats and anomalies.
 1. Start with: read_zeek_logs tool
 2. Extract filenames from "📦 Extracted Files" section (just the filename, like: extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj)
 3. Look for: Suspicious IPs, unusual ports, high connection rates, malware signatures, EICAR markers
-4. When calling check_malware_hash or scan_with_yara:
+4. When calling check_malware_hash:
    - Pass ONLY the filename (auto-search feature will find it in latest sessions)
    - Example: check_malware_hash("extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj")
 5. Report: Clear findings with confidence levels
@@ -386,24 +386,6 @@ Monitor and analyze Docker network traffic for security threats and anomalies.
                 - Recommended action
             """
             return self._check_malware_hash(file_path, check_online)
-        
-        @self.mcp.tool
-        def scan_with_yara(file_path: str, rule_name: str = "all") -> str:
-            """Scan a file using YARA rules for content-based malware detection.
-            
-            YARA rules detect malware by analyzing file content, patterns, and behaviors
-            rather than just hashes. This catches polymorphic malware and variants.
-            
-            Args:
-                file_path: Filename from read_zeek_logs() output (auto-searches latest sessions).
-                    Example: "extract-1763552877.58295-HTTP-FQmdipn4669nGIAJj"
-                    
-                rule_name: YARA rule to use ("all", "eicar", "suspicious_http", or specific rule)
-            
-            Returns:
-                YARA scan results with matched rules and descriptions
-            """
-            return self._scan_with_yara(file_path, rule_name)
 
     def _run_analyze_bat(self) -> str:
         """Run analyze_auto.bat and return terminal output"""
@@ -971,12 +953,12 @@ chmod +x /tmp/mcp_script.sh"""
                     except Exception as e:
                         result += f"  ⚠️ Error reading {log_file}: {str(e)}\n"
                 
-                # Check for extracted_files directory
+                # Check for extracted_files directory in session
                 extracted_dir = session_dir / "extracted_files"
                 if extracted_dir.exists() and extracted_dir.is_dir():
                     extracted_files = list(extracted_dir.glob("*"))
                     if extracted_files:
-                        result += f"\n  📦 Extracted Files: {len(extracted_files)} files\n"
+                        result += f"\n  📦 Extracted Files (Session): {len(extracted_files)} files\n"
                         result += f"  {'─'*60}\n"
                         
                         for extracted_file in extracted_files[:10]:  # Show first 10
@@ -1002,6 +984,41 @@ chmod +x /tmp/mcp_script.sh"""
                         
                         if len(extracted_files) > 10:
                             result += f"\n  ... and {len(extracted_files) - 10} more files\n"
+
+            # Check for global extracted_files directory (root of zeek_logs)
+            global_extracted_dir = zeek_logs_dir / "extracted_files"
+            if global_extracted_dir.exists() and global_extracted_dir.is_dir():
+                # Get recent files (last 5 minutes)
+                recent_files = sorted(
+                    [f for f in global_extracted_dir.glob("*") if f.is_file()],
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True
+                )[:20]  # Show last 20 files
+                
+                if recent_files:
+                    result += f"\n📦 Global Extracted Files (Last 20)\n{'-'*80}\n"
+                    for extracted_file in recent_files:
+                        try:
+                            file_size = extracted_file.stat().st_size
+                            file_time = datetime.fromtimestamp(extracted_file.stat().st_mtime).strftime('%H:%M:%S')
+                            
+                            with open(extracted_file, 'r', encoding='utf-8', errors='ignore') as f:
+                                file_content = f.read()
+                            
+                            # Check for EICAR
+                            has_eicar = "EICAR" in file_content
+                            eicar_marker = " ⚠️ EICAR!" if has_eicar else ""
+                            
+                            result += f"\n  📄 {extracted_file.name} ({file_size}B) [{file_time}]{eicar_marker}\n"
+                            
+                            # Show content preview
+                            preview = file_content[:300]
+                            if len(file_content) > 300:
+                                preview += "..."
+                            result += f"     {preview}\n"
+                            
+                        except Exception as e:
+                            result += f"  ⚠️ {extracted_file.name}: {str(e)}\n"
             
             if total_entries == 0:
                 return "Zeek monitor is running but no traffic captured yet.\n\n" + \
@@ -1205,7 +1222,20 @@ chmod +x /tmp/mcp_script.sh"""
             zeek_logs_dir = self.network_dir / "zeek_logs"
             
             if zeek_logs_dir.exists():
-                # Get all session directories sorted by modification time (newest first)
+                # 1. Check global extracted_files directory first (most likely location)
+                global_extracted_dir = zeek_logs_dir / "extracted_files"
+                if global_extracted_dir.exists():
+                    # Try exact filename match
+                    candidate = global_extracted_dir / filename
+                    if candidate.exists():
+                        return candidate
+                    
+                    # Try pattern matching
+                    for extracted_file in global_extracted_dir.glob("*"):
+                        if filename in extracted_file.name or extracted_file.name in filename:
+                            return extracted_file
+
+                # 2. Get all session directories sorted by modification time (newest first)
                 session_dirs = sorted(
                     [d for d in zeek_logs_dir.glob("session_*") if d.is_dir()],
                     key=lambda x: x.stat().st_mtime,
@@ -1253,14 +1283,45 @@ chmod +x /tmp/mcp_script.sh"""
             # Smart path resolution
             file_path_obj = self._resolve_file_path(file_path)
             
+            # If not a file, check if it's a hash string
             if not file_path_obj:
-                return f"❌ ERROR: File not found\n\n" + \
-                       f"Search query: {file_path}\n" + \
-                       f"\n💡 TIP: When reading zeek logs, extract the FULL Windows path from extracted_files section.\n" + \
-                       f"Look for paths like: E:\\...\\zeek_logs\\session_*\\extracted_files\\extract-*"
-            
-            # Check file
-            result = checker.check_file(str(file_path_obj), check_online=check_online)
+                import re
+                # Check for MD5 (32), SHA1 (40), or SHA256 (64) hex strings
+                if re.match(r'^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$', file_path.strip()):
+                    # It's a hash! Check directly
+                    hash_value = file_path.strip()
+                    matches = checker.check_hash(hash_value)
+                    
+                    # Construct a result object similar to check_file
+                    result = {
+                        "status": "success",
+                        "file_path": f"[Hash Check] {hash_value}",
+                        "file_size": 0,
+                        "hashes": {
+                            "query": hash_value
+                        },
+                        "matches": matches,
+                        "threat_level": "MALWARE" if matches else "CLEAN",
+                        "threat_score": 100 if matches else 0,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    
+                    # Online check for hash
+                    if check_online and not matches and len(hash_value) == 64:
+                        online_results = checker._check_online(hash_value)
+                        if online_results:
+                            result["online_check"] = online_results
+                            if online_results.get("found"):
+                                result["threat_level"] = "MALWARE (Online)"
+                                result["threat_score"] = 100
+                else:
+                    return f"❌ ERROR: File not found and input is not a valid hash\n\n" + \
+                           f"Search query: {file_path}\n" + \
+                           f"\n💡 TIP: When reading zeek logs, extract the FULL Windows path from extracted_files section.\n" + \
+                           f"Look for paths like: E:\\...\\zeek_logs\\session_*\\extracted_files\\extract-*"
+            else:
+                # Check file
+                result = checker.check_file(str(file_path_obj), check_online=check_online)
             
             # Format output
             if result["status"] == "error":
@@ -1332,10 +1393,8 @@ chmod +x /tmp/mcp_script.sh"""
                 output.append("  ✅ Safe to ignore if this is a security test")
             elif result['threat_level'] == "SUSPICIOUS":
                 output.append("  ⚠️ Monitor - Suspicious patterns detected")
-                output.append("  🔍 Perform additional YARA rule scanning")
             else:
                 output.append("  ✅ File appears clean")
-                output.append("  💭 Consider YARA scanning for deeper analysis")
             
             output.append("="*70)
             
@@ -1348,97 +1407,6 @@ chmod +x /tmp/mcp_script.sh"""
         except Exception as e:
             import traceback
             return f"❌ ERROR checking malware hash: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-    
-    def _scan_with_yara(self, file_path: str, rule_name: str = "all") -> str:
-        """Scan file with YARA rules"""
-        try:
-            # Check if yara-python is installed
-            try:
-                import yara
-            except ImportError:
-                return "❌ ERROR: yara-python not installed\n\n" + \
-                       "Install with: pip install yara-python\n" + \
-                       "Then download rules: cd malware_db/scripts && python update_yara_rules.py"
-            
-            yara_dir = self.malware_db_dir / "yara_rules"
-            
-            if not yara_dir.exists():
-                return "❌ ERROR: YARA rules directory not found\n\n" + \
-                       "Download rules: cd malware_db/scripts && python update_yara_rules.py"
-            
-            # Smart path resolution
-            file_path_obj = self._resolve_file_path(file_path)
-            
-            if not file_path_obj:
-                return f"❌ ERROR: File not found\n\n" + \
-                       f"Search query: {file_path}\n" + \
-                       f"\n💡 TIP: When reading zeek logs, extract the FULL Windows path from extracted_files section."
-            
-            # Determine which rules to load
-            if rule_name == "all":
-                # Try compiled rules first
-                compiled_file = yara_dir / "compiled_rules.yarc"
-                if compiled_file.exists():
-                    rules = yara.load(str(compiled_file))
-                else:
-                    # Load index file
-                    index_file = yara_dir / "compiled_rules.yar"
-                    if index_file.exists():
-                        rules = yara.compile(filepath=str(index_file))
-                    else:
-                        return "❌ ERROR: No YARA rules found\n\n" + \
-                               "Download rules: cd malware_db/scripts && python update_yara_rules.py"
-            else:
-                # Load specific rule
-                rule_file = yara_dir / "custom" / f"{rule_name}.yar"
-                if not rule_file.exists():
-                    return f"❌ ERROR: Rule file not found: {rule_file}"
-                rules = yara.compile(filepath=str(rule_file))
-            
-            # Scan file
-            file_path_obj = Path(file_path)
-            if not file_path_obj.exists():
-                return f"❌ ERROR: File not found: {file_path}"
-            
-            matches = rules.match(str(file_path_obj))
-            
-            # Format output
-            output = []
-            output.append("="*70)
-            output.append("📜 YARA SCAN RESULTS")
-            output.append("="*70)
-            output.append(f"\n📄 File: {file_path}")
-            output.append(f"🎯 Rules: {rule_name}")
-            output.append(f"\n🔍 Matches Found: {len(matches)}")
-            
-            if matches:
-                output.append("\n⚠️ YARA RULES TRIGGERED!\n")
-                for i, match in enumerate(matches, 1):
-                    output.append(f"Match #{i}: {match.rule}")
-                    
-                    if match.meta:
-                        output.append("  Metadata:")
-                        for key, value in match.meta.items():
-                            output.append(f"    {key}: {value}")
-                    
-                    if match.strings:
-                        output.append("  Matched Strings:")
-                        for string_match in match.strings[:5]:  # Show first 5
-                            output.append(f"    {string_match}")
-                        if len(match.strings) > 5:
-                            output.append(f"    ... and {len(match.strings) - 5} more")
-                    
-                    output.append("")
-            else:
-                output.append("\n✅ No YARA rules matched")
-            
-            output.append("="*70)
-            
-            return "\n".join(output)
-            
-        except Exception as e:
-            import traceback
-            return f"❌ ERROR scanning with YARA: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
     
     def run(self):
         """Run the FastMCP server."""
