@@ -351,6 +351,59 @@ def files_upload():
         "message": "Binary file received - Zeek is extracting from HTTP stream"
     }), 200
 
+@app.route('/api/v1/firmware/update', methods=['POST'])
+def firmware_update():
+    """Firmware update endpoint - Receives malware samples disguised as firmware"""
+    source_ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', '')
+    content_type = request.headers.get('Content-Type', '')
+    content_length = request.content_length or 0
+    
+    # Get filename from headers
+    filename = request.headers.get('X-Filename', 'firmware_update.bin')
+    original_hash = request.headers.get('X-Original-Hash', 'unknown')
+    
+    # Log the incoming binary file
+    print(f"[FIRMWARE UPDATE] Binary file from {source_ip}")
+    print(f"  Filename: {filename}")
+    print(f"  Content-Type: {content_type}")
+    print(f"  Size: {content_length} bytes ({content_length/1024/1024:.2f} MB)")
+    print(f"  Original Hash: {original_hash}")
+    print(f"  User-Agent: {user_agent}")
+    
+    # Consume the binary data (important for Zeek to capture it)
+    binary_data = request.get_data()
+    
+    # Save uploaded file for verification
+    upload_dir = "/app/uploaded_malware"
+    os.makedirs(upload_dir, exist_ok=True)
+    saved_path = os.path.join(upload_dir, filename)
+    
+    with open(saved_path, 'wb') as f:
+        f.write(binary_data)
+    
+    # Calculate hash of received file
+    import hashlib
+    sha256 = hashlib.sha256()
+    sha256.update(binary_data)
+    received_hash = sha256.hexdigest()
+    
+    print(f"  Received: {len(binary_data)} bytes")
+    print(f"  Saved to: {saved_path}")
+    print(f"  Received Hash: {received_hash}")
+    print(f"  Expected Hash: {original_hash}")
+    print(f"  Hash Match: {received_hash == original_hash}")
+    
+    # Return success
+    return jsonify({
+        "status": "success",
+        "message": "Firmware update received",
+        "update_id": "fw_update_001",
+        "size": len(binary_data),
+        "filename": filename,
+        "version": "1.0.0"
+    }), 200
+
 # Legacy malware endpoints (keep for backward compatibility)
 @app.route('/api/c2/beacon', methods=['POST'])
 def c2_beacon():

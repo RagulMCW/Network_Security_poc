@@ -22,9 +22,10 @@
 # CONFIGURATION
 # ========================================
 
-# Extract files to current directory (session folder) instead of global path
+# DISABLE file extraction - only log file hashes, don't save file content
+# This keeps the logs clean while still tracking malware hashes
 redef FileExtract::prefix = "./extracted_files/";
-redef FileExtract::default_limit = 10485760;
+redef FileExtract::default_limit = 0;  # Set to 0 to disable extraction
 redef Log::default_rotation_interval = 0 secs;
 
 redef likely_server_ports += {
@@ -54,10 +55,11 @@ event http_header(c: connection, is_orig: bool, name: string, value: string)
     }
 }
 
-# 2. Associate Hash with File and Enable Extraction
+# 2. Associate Hash with File - Calculate Hashes WITHOUT Extracting File Content
 event file_over_new_connection(f: fa_file, c: connection, is_orig: bool)
 {
-    Files::add_analyzer(f, Files::ANALYZER_EXTRACT);
+    # REMOVED: Files::add_analyzer(f, Files::ANALYZER_EXTRACT);
+    # Only calculate hashes, don't save the actual file
     Files::add_analyzer(f, Files::ANALYZER_MD5);
     Files::add_analyzer(f, Files::ANALYZER_SHA1);
     Files::add_analyzer(f, Files::ANALYZER_SHA256);
@@ -78,38 +80,9 @@ event http_entity_data(c: connection, is_orig: bool, length: count, data: string
         NOTICE([$note=Signatures::Sensitive_Signature, $msg=notice_msg, $conn=c, $identifier=cat(c$id$orig_h, c$id$resp_h)]);
     }
 
-    # POST Body Extraction - ONLY for specific conditions to avoid device telemetry
-    # Extract ONLY if:
-    # 1. Content-Type is application/octet-stream (raw binary files)
-    # 2. OR has filename in Content-Disposition (actual file uploads)
-    # 3. OR is large (>10KB) to capture malware samples
-    # SKIP device telemetry (JSON data to /api/device/data)
-    if ( is_orig && c?$http && c$http?$method && c$http$method == "POST" )
-    {
-        local should_extract = F;
-        
-        # Simplified: just check for large files (likely malware samples, not small JSON telemetry)
-        # Zeek 7.0 changed HTTP header access patterns, so skip detailed content-type checks
-        if ( length > 10000 )  # 10KB threshold to avoid small device data
-        {
-            should_extract = T;
-        }
-        
-        # EXCLUDE device telemetry endpoints
-        if ( c$http?$uri && /\/api\/device/ in c$http$uri )
-        {
-            should_extract = F;
-        }
-        
-        # Extract if conditions are met
-        if ( should_extract )
-        {
-            local fname = fmt("%s/post_body_%s.bin", FileExtract::prefix, c$uid);
-            local f = open(fname);
-            print f, data;
-            close(f);
-        }
-    }
+    # DISABLED POST Body Extraction - Zeek file analyzer will calculate hashes automatically
+    # No need to manually extract since we disabled ANALYZER_EXTRACT above
+    # The files.log will contain all the hash information your LLM needs
 }
 
 # 4. Log HTTP Details
