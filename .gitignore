@@ -109,3 +109,5 @@ dashboard/*.log
 # -----------------------------------------
 honey_pot/beelzebub-example/configurations/*
 !honey_pot/beelzebub-example/configurations/.gitkeep
+extract-*
+zeek_logs/*
