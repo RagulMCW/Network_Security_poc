@@ -13,39 +13,6 @@ function showToast(message, type = 'success') {
 }
 
 // Page navigation
-function showPage(pageName) {
-    // Hide all pages
-    document.querySelectorAll('.page').forEach(page => {
-        page.classList.remove('active');
-    });
-    
-    // Remove active from all nav buttons
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    // Show selected page
-    document.getElementById(`page-${pageName}`).classList.add('active');
-    
-    // Set active nav button
-    event.target.classList.add('active');
-    
-    currentPage = pageName;
-    
-    // Refresh data for the page
-    if (pageName === 'network-map') {
-        refreshNetworkMap();
-    } else if (pageName === 'monitor') {
-        refreshMonitorStatus();
-    } else if (pageName === 'devices') {
-        refreshDevices();
-    } else if (pageName === 'beelzebub') {
-        refreshBeelzebubStats();
-        refreshReroutes();  // Also refresh isolated devices list
-    } else if (pageName === 'logs') {
-        refreshDeviceData();
-    }
-}
 
 // Refresh all data
 function refreshAll() {
@@ -1170,12 +1137,13 @@ function showMalwareLog(logType) {
 
 // Monitor server control
 async function startMonitor() {
-    showToast('Starting network monitor server... (this may take 30 seconds)', 'success');
+    showToast('Initiating network monitor startup...', 'success');
     try {
         const response = await fetch('/api/monitor/start', { method: 'POST' });
         const data = await response.json();
         showToast(data.message, data.success ? 'success' : 'error');
-        setTimeout(refreshStatus, 3000);
+        // Refresh status periodically to check progress
+        setTimeout(refreshStatus, 5000);
     } catch (error) {
         showToast('Error starting monitor', 'error');
     }
@@ -1268,7 +1236,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Tab switching
+// Tab switching for logs page
 function switchTab(tabName) {
     // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(content => {
@@ -1281,12 +1249,15 @@ function switchTab(tabName) {
     });
     
     // Show selected tab content
-    document.getElementById(`tab-${tabName}`).classList.add('active');
+    const tabContent = document.getElementById(`tab-${tabName}`);
+    if (tabContent) {
+        tabContent.classList.add('active');
+    }
     
     // Set active tab button
     event.target.classList.add('active');
     
-    // Load data for the tab
+    // Load data for the tab if needed
     if (tabName === 'device-data') {
         refreshDeviceData();
     } else if (tabName === 'monitor-logs') {
@@ -1298,7 +1269,7 @@ function switchTab(tabName) {
     }
 }
 
-// Refresh monitor logs in tab
+// Refresh monitor logs in the logs tab
 async function refreshMonitorLogsInTab() {
     try {
         const response = await fetch('/api/monitor/logs');
@@ -1325,7 +1296,39 @@ async function refreshMonitorLogsInTab() {
         logsDisplay.scrollTop = logsDisplay.scrollHeight;
 
     } catch (error) {
-        showToast('Error loading monitor logs', 'error');
+        console.error('Error loading monitor logs:', error);
+    }
+}
+
+// Page navigation
+function showPage(pageName, event) {
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(page => {
+        page.classList.remove('active');
+    });
+    // Remove active from all nav buttons
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    // Show selected page
+    document.getElementById(`page-${pageName}`).classList.add('active');
+    // Set active nav button
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
+    currentPage = pageName;
+    // Refresh data for the page
+    if (pageName === 'network-map') {
+        refreshNetworkMap();
+    } else if (pageName === 'monitor') {
+        refreshMonitorStatus();
+    } else if (pageName === 'devices') {
+        refreshDevices();
+    } else if (pageName === 'beelzebub') {
+        refreshBeelzebubStats();
+        refreshReroutes();  // Also refresh isolated devices list
+    } else if (pageName === 'logs') {
+        refreshDeviceData();
     }
 }
 
@@ -1686,7 +1689,7 @@ function showNodeDetails(node) {
                 ${node.type === 'gateway' ? '<i class="fas fa-network-wired" style="color: #10b981;"></i>' : ''}
                 ${node.type === 'honeypot' ? '<i class="fas fa-shield-alt" style="color: #f59e0b;"></i>' : ''}
                 ${node.type === 'monitor' ? '<i class="fas fa-eye" style="color: #8b5cf6;"></i>' : ''}
-                ${escapeHtml(node.name)}
+                ${escapeHtml(node.type === 'attacker' ? node.ip : node.name)}
             </h4>
             <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9em;">
                 <strong>ID:</strong> <span>${escapeHtml(node.id)}</span>
@@ -1694,11 +1697,9 @@ function showNodeDetails(node) {
                 <strong>IP Address:</strong> <span style="font-family: monospace; background: #e5e7eb; padding: 2px 6px; border-radius: 3px;">${escapeHtml(node.ip)}</span>
                 <strong>Status:</strong> <span style="color: ${node.status === 'running' ? '#10b981' : '#6b7280'}; font-weight: bold;">${escapeHtml(node.status.toUpperCase())}</span>
     `;
-    
     if (node.container_id) {
         html += `<strong>Container ID:</strong> <span style="font-family: monospace; font-size: 0.85em;">${escapeHtml(node.container_id)}</span>`;
     }
-    
     // Show network information
     if (node.on_honeypot_network) {
         html += `<strong>Network:</strong> <span style="color: #f59e0b; font-weight: bold;">🍯 Honeypot Network (ISOLATED)</span>`;
@@ -1708,51 +1709,13 @@ function showNodeDetails(node) {
     } else if (node.type !== 'honeypot_network' && node.type !== 'gateway') {
         html += `<strong>Network:</strong> <span style="color: #10b981;">📡 Production Network (custom_net)</span>`;
     }
-    
     if (node.last_seen) {
         html += `<strong>Last Seen:</strong> <span>${escapeHtml(node.last_seen)}</span>`;
     }
-    
-    // Show attacker-specific information
-    if (node.type === 'attacker' && node.attacker_info) {
-        html += `
-            </div>
-            <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #ef4444;">
-                <h5 style="margin: 0 0 10px 0; color: #ef4444; display: flex; align-items: center; gap: 8px;">
-                    <i class="fas fa-exclamation-triangle"></i> Attacker Information
-                </h5>
-                <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9em;">
-                    <strong>Attack Type:</strong> <span style="color: #ef4444; font-weight: bold;">${escapeHtml(node.attacker_info.attack_type)}</span>
-                    <strong>Target:</strong> <span>${escapeHtml(node.attacker_info.target)}</span>
-                    <strong>Threat Level:</strong> 
-                    <span style="
-                        background: ${node.attacker_info.threat_level === 'CRITICAL' ? '#dc2626' : node.attacker_info.threat_level === 'HIGH' ? '#ef4444' : '#f59e0b'}; 
-                        color: white; 
-                        padding: 2px 8px; 
-                        border-radius: 3px; 
-                        font-weight: bold;
-                        font-size: 0.85em;
-                    ">${escapeHtml(node.attacker_info.threat_level)}</span>
-                    <strong>Description:</strong> <span>${escapeHtml(node.attacker_info.description)}</span>
-                </div>
-            </div>
-            <div style="margin-top: 15px; padding: 10px; background: #fef2f2; border-left: 3px solid #ef4444; border-radius: 4px;">
-                <div style="color: #991b1b; font-size: 0.85em;">
-                    <strong>⚠️ Security Notice:</strong> This is a simulated attacker for testing network security responses. 
-                    ${node.on_honeypot_network ? '<br><strong style="color: #16a34a;">✅ ISOLATED:</strong> Device has been moved to honeypot network and cannot harm production systems.' : '<br><strong style="color: #dc2626;">⚠️ ACTIVE:</strong> This attacker is currently on the production network.'}
-                </div>
-            </div>
-        `;
-    } else {
-        html += `
-            </div>
-        `;
-    }
-    
     html += `
+            </div>
         </div>
     `;
-    
     detailsDiv.innerHTML = html;
 }
 
@@ -2073,6 +2036,96 @@ async function quickRerouteToBeelzebub() {
     } catch (error) {
         showToast('Connection error', 'error');
         addAgentMessage('agent', `❌ Error: ${error.message}`);
+    }
+}
+
+// Show network detection info (malware, threats, anomalies)
+async function showNetworkDetectionInfo() {
+    const loadingId = addAgentMessage('agent', '🔍 Scanning network for threats, malware, and anomalies...', true);
+    
+    try {
+        const response = await fetch('/api/network/detection-info');
+        const data = await response.json();
+        
+        removeAgentMessage(loadingId);
+        
+        if (data.success) {
+            let infoMessage = `# 🚨 NETWORK DETECTION REPORT\n\n`;
+            infoMessage += `**Scan Time:** ${new Date(data.timestamp).toLocaleString()}\n`;
+            infoMessage += `**Network Health:** ${data.network_health}\n\n`;
+            
+            // Statistics summary
+            infoMessage += `## 📊 Statistics\n`;
+            infoMessage += `- Total Threats: ${data.statistics.total_threats}\n`;
+            infoMessage += `- Malware Files: ${data.statistics.malware_files_count}\n`;
+            infoMessage += `- Honeypot Attacks: ${data.statistics.honeypot_attacks_count}\n`;
+            infoMessage += `- DoS Attacks: ${data.statistics.dos_attacks_count}\n`;
+            infoMessage += `- Active Defenses: ${data.statistics.active_defenses_count}\n`;
+            infoMessage += `- Quarantined Devices: ${data.statistics.rerouted_devices}\n\n`;
+            
+            // Malware detected
+            if (data.malware_detected.length > 0) {
+                infoMessage += `## 🦠 MALWARE DETECTED\n`;
+                data.malware_detected.forEach(malware => {
+                    infoMessage += `\n**${malware.type}** [${malware.severity}]\n`;
+                    infoMessage += `- Count: ${malware.count}\n`;
+                    infoMessage += `- Location: ${malware.location}\n`;
+                    infoMessage += `- Description: ${malware.description}\n`;
+                });
+                infoMessage += `\n`;
+            }
+            
+            // Threats detected
+            if (data.threats_detected.length > 0) {
+                infoMessage += `## ⚠️ THREATS DETECTED\n`;
+                data.threats_detected.forEach(threat => {
+                    infoMessage += `\n**${threat.type}** [${threat.severity}]\n`;
+                    infoMessage += `- Count: ${threat.count}\n`;
+                    infoMessage += `- Description: ${threat.description}\n`;
+                });
+                infoMessage += `\n`;
+            }
+            
+            // Anomalies
+            if (data.anomalies.length > 0) {
+                infoMessage += `## 🔴 ANOMALIES DETECTED\n`;
+                data.anomalies.forEach(anomaly => {
+                    infoMessage += `\n**${anomaly.type}** [${anomaly.severity}]\n`;
+                    infoMessage += `- Count: ${anomaly.count}\n`;
+                    infoMessage += `- Description: ${anomaly.description}\n`;
+                });
+                infoMessage += `\n`;
+            }
+            
+            // Active defenses
+            if (data.active_defenses.length > 0) {
+                infoMessage += `## 🛡️ ACTIVE DEFENSES\n`;
+                data.active_defenses.forEach(defense => {
+                    infoMessage += `\n✅ **${defense.name}** - ${defense.status}\n`;
+                    infoMessage += `   ${defense.description}\n`;
+                });
+                infoMessage += `\n`;
+            }
+            
+            // Overall status
+            if (data.network_health === 'HEALTHY') {
+                infoMessage += `\n✅ **Status:** Network is healthy. No critical issues detected.\n`;
+            } else if (data.network_health === 'WARNING') {
+                infoMessage += `\n⚠️ **Status:** Network health warning. Some threats detected.\n`;
+            } else if (data.network_health === 'CRITICAL') {
+                infoMessage += `\n🔴 **Status:** CRITICAL - Multiple threats detected! Immediate action recommended.\n`;
+            }
+            
+            addAgentMessage('agent', infoMessage);
+            showToast('Network scan complete', 'success');
+        } else {
+            addAgentMessage('agent', `❌ Error: ${data.error}`);
+            showToast('Scan failed', 'error');
+        }
+    } catch (error) {
+        removeAgentMessage(loadingId);
+        addAgentMessage('agent', `❌ Error: ${error.message}`);
+        showToast('Connection error', 'error');
     }
 }
 

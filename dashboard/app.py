@@ -10,6 +10,7 @@ import json
 import os
 from datetime import datetime
 import re
+import threading
 
 # Load environment variables from MCP agent config
 try:
@@ -139,18 +140,18 @@ def local_summarize_analysis(analysis_text: str) -> str:
 @app.route('/')
 def index():
     """Main dashboard page"""
-    return render_template('control_panel.html')
+    return render_template('dashboard.html')
 
 @app.route('/api/status')
 def get_status():
-    """Get status of all components"""
+    """Get status of all components - OPTIMIZED for fast loading"""
     
-    # Check Docker network
-    network_result = run_wsl_command('docker network ls | grep custom_net')
+    # Check Docker network (fast)
+    network_result = run_wsl_command('docker network ls | grep custom_net', timeout=5)
     network_exists = network_result['success'] and 'custom_net' in network_result['output']
     
-    # Check running containers
-    containers_result = run_wsl_command('docker ps --format "{{.Names}}|{{.Status}}|{{.Image}}"')
+    # Get running containers (fast - single command)
+    containers_result = run_wsl_command('docker ps --format "{{.Names}}|{{.Status}}|{{.Image}}"', timeout=5)
     containers = []
     
     if containers_result['success']:
@@ -164,60 +165,38 @@ def get_status():
                         'image': parts[2]
                     })
     
-    # Count devices
-    device_containers = [c for c in containers if c['name'].startswith('device_')]
-    # Discover devices by network (custom_net vs honeypot_net)
+    # Count devices (fast - name matching)
+    device_containers = [c for c in containers if c['name'].startswith('device_') or c['name'].startswith('vdevice_')]
+    
+    # Quick categorization by name patterns (no container inspection needed)
     production_devices = []
     honeypot_devices = []
-    try:
-        for c in containers:
-            # Inspect container network settings
-            inspect_cmd = f"docker inspect --format '{{{{json .NetworkSettings.Networks}}}}' {c['name']}"
-            net_info = run_wsl_command(inspect_cmd)
-            networks = {}
-            ip_address = None
-            if net_info['success'] and net_info['output'].strip():
-                try:
-                    networks = json.loads(net_info['output'])
-                    # Get first IP if available
-                    for net_name, net_obj in networks.items():
-                        ip = net_obj.get('IPAddress')
-                        if ip:
-                            ip_address = ip
-                            break
-                except Exception:
-                    networks = {}
-
-            entry = {
+    
+    for c in device_containers:
+        # Simple heuristic: if name contains 'honeypot' or known honeypot pattern
+        if 'honeypot' in c['name'].lower() or c['name'].startswith('hp_'):
+            honeypot_devices.append({
                 'name': c['name'],
                 'status': c['status'],
-                'image': c['image'],
-                'ip': ip_address,
-                'networks': list(networks.keys())
-            }
-
-            if 'honeypot_net' in networks or any('honeypot' in net for net in networks.keys()):
-                honeypot_devices.append(entry)
-            elif 'custom_net' in networks or (ip_address and ip_address.startswith('192.168.6.')):
-                production_devices.append(entry)
-            else:
-                # Unknown network - treat as production by default
-                production_devices.append(entry)
-    except Exception:
-        # On error, leave lists empty - status will still include basic containers
-        production_devices = []
-        honeypot_devices = []
+                'image': c['image']
+            })
+        else:
+            production_devices.append({
+                'name': c['name'],
+                'status': c['status'],
+                'image': c['image']
+            })
     
-    # Check Beelzebub
+    # Check Beelzebub (fast - name matching)
     beelzebub_running = any('beelzebub' in c['name'].lower() for c in containers)
     
-    # Check attackers (distinguish between DOS and SSH)
+    # Check attackers (fast - name matching)
     dos_attacker_running = any(c['name'] == 'hping3-attacker' for c in containers)
     ssh_attacker_running = any(c['name'] == 'ssh-attacker' for c in containers)
-    malware_attacker_running = any(c['name'] == 'malware-attacker' for c in containers)
+    malware_attacker_running = any(c['name'] == 'malware_attacker' for c in containers)
     attacker_running = dos_attacker_running or ssh_attacker_running or malware_attacker_running
     
-    # Check network monitor (check both possible names)
+    # Check network monitor (fast - name matching)
     monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor'] for c in containers)
     
     return jsonify({
@@ -1045,7 +1024,7 @@ def reroute_to_beelzebub():
         import json as json_lib
         try:
             networks = json_lib.loads(verify_result['output'].strip())
-            connected_networks = list(networks.keys())
+            connected_networks = list(networks.keys());
             print(f"Container networks after connection: {connected_networks}")
             
             if honeypot_network not in connected_networks:
@@ -1693,13 +1672,35 @@ def get_malware_attacker_status():
 def start_monitor():
     """Start network monitor server"""
     
-    # Use docker-compose to start (build can take 2-3 minutes)
-    result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && docker compose up -d --build', timeout=300)
+    # Ensure custom_net exists first
+    network_check = run_wsl_command('docker network ls | grep custom_net')
+    if not (network_check['success'] and 'custom_net' in network_check['output']):
+        print("Creating custom_net network...")
+        create_net = run_wsl_command('docker network create --subnet=192.168.6.0/24 custom_net')
+        if not create_net['success']:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to create network. Please create network first.',
+                'error': create_net['error']
+            })
+    
+    def run_monitor_startup():
+        print("Starting monitor in background...")
+        # Use docker-compose to start (build can take 2-3 minutes)
+        # Increased timeout to 10 minutes for initial build
+        result = run_wsl_command(f'cd {WSL_NETWORK_DIR} && docker compose up -d --build', timeout=600)
+        print(f"Monitor startup result: {result['success']}")
+        if not result['success']:
+            print(f"Monitor startup error: {result['error']}")
+
+    # Start in background thread
+    thread = threading.Thread(target=run_monitor_startup)
+    thread.start()
     
     return jsonify({
-        'success': result['success'],
-        'message': 'Network monitor started successfully' if result['success'] else result['error'],
-        'output': result['output']
+        'success': True,
+        'message': 'Network monitor starting in background... This may take 2-3 minutes. Check status periodically.',
+        'output': 'Startup process initiated in background'
     })
 
 @app.route('/api/monitor/stop', methods=['POST'])
@@ -1733,18 +1734,21 @@ def get_monitor_status():
 @app.route('/api/monitor/logs')
 def get_monitor_logs():
     """Get network monitor container logs"""
-    
-    # Get logs from monitor container
-    result = run_wsl_command('docker logs --tail 200 net-monitor-wan 2>&1')
-    
-    # If that fails, try 'monitor' name
-    if not result['success'] or not result['output']:
-        result = run_wsl_command('docker logs --tail 200 monitor 2>&1')
-    
+    # Try all possible container names in order of likelihood
+    container_names = ['network-monitor', 'net-monitor-wan', 'monitor']
+    result = None
+    for cname in container_names:
+        result = run_wsl_command(f'docker logs --tail 200 {cname} 2>&1')
+        if result['success'] and result['output']:
+            container_used = cname
+            break
+    else:
+        # If none succeeded, use the last result for error
+        container_used = container_names[0]
     return jsonify({
         'success': result['success'],
         'logs': result['output'] if result['success'] else result['error'],
-        'container': 'monitor'
+        'container': container_used
     })
 
 @app.route('/api/logs/network')
@@ -1944,27 +1948,36 @@ def get_network_map():
                         display_name = 'Honeypot Log Viewer'
                     else:
                         display_name = 'Honeypot Server'
-                elif 'monitor' in container_name or container_name == 'net-monitor-wan':
-                    node_type = 'monitor'
-                    display_name = 'Network Monitor Server'
-                elif 'attacker' in container_name:
-                    node_type = 'attacker'
-                    display_name = 'DOS Attacker'
-                    
-                    # Get attacker details
                     node_data = {
                         'id': container_name,
                         'name': display_name,
                         'type': node_type,
                         'ip': container_ip,
                         'status': 'running',
-                        'container_id': container_id[:12],
-                        'attacker_info': {
-                            'attack_type': 'DoS/DDoS',
-                            'target': 'Network flooding',
-                            'threat_level': 'HIGH',
-                            'description': 'Simulated DoS attacker sending high-volume traffic'
-                        }
+                        'container_id': container_id[:12]
+                    }
+                elif 'monitor' in container_name or container_name == 'net-monitor-wan':
+                    node_type = 'monitor'
+                    display_name = 'Network Monitor Server'
+                    node_data = {
+                        'id': container_name,
+                        'name': display_name,
+                        'type': node_type,
+                        'ip': container_ip,
+                        'status': 'running',
+                        'container_id': container_id[:12]
+                    }
+                elif 'attacker' in container_name:
+                    node_type = 'attacker'
+                    # For attacker nodes, use only the IP as the display name (if available)
+                    display_name = container_ip if container_ip else container_name
+                    node_data = {
+                        'id': container_name,
+                        'name': display_name,
+                        'type': node_type,
+                        'ip': container_ip,
+                        'status': 'running',
+                        'container_id': container_id[:12]
                     }
                 else:
                     node_type = 'other'
@@ -1977,15 +1990,7 @@ def get_network_map():
                         'status': 'running',
                         'container_id': container_id[:12]
                     }
-                
-                nodes.append(node_data if 'attacker' in container_name else {
-                    'id': container_name,
-                    'name': display_name,
-                    'type': node_type,
-                    'ip': container_ip,
-                    'status': 'running',
-                    'container_id': container_id[:12]
-                })
+                nodes.append(node_data)
                 
                 # Create connection to gateway
                 connections.append({
@@ -2331,6 +2336,142 @@ def test_anthropic_key():
             'success': False,
             'error': f'API key test failed: {str(e)}',
             'error_type': type(e).__name__
+        })
+
+@app.route('/api/network/detection-info')
+def get_network_detection_info():
+    """Get comprehensive network detection info - malware, threats, anomalies"""
+    try:
+        detection_info = {
+            'timestamp': datetime.now().isoformat(),
+            'network_health': 'HEALTHY',
+            'threats_detected': [],
+            'malware_detected': [],
+            'anomalies': [],
+            'active_defenses': [],
+            'statistics': {}
+        }
+        
+        # Check for malware detections from zeek logs
+        zeek_extracted_dir = os.path.join(NETWORK_DIR, 'zeek_logs', 'extracted_files')
+        malware_count = 0
+        if os.path.exists(zeek_extracted_dir):
+            malware_count = len([f for f in os.listdir(zeek_extracted_dir) if os.path.isfile(os.path.join(zeek_extracted_dir, f))])
+            if malware_count > 0:
+                detection_info['malware_detected'].append({
+                    'type': 'Extracted Files',
+                    'count': malware_count,
+                    'location': 'zeek_logs/extracted_files',
+                    'severity': 'HIGH' if malware_count > 10 else 'MEDIUM',
+                    'description': f'{malware_count} suspicious files extracted from network traffic'
+                })
+        
+        # Check honeypot attack logs
+        attacks_file = os.path.join(HONEYPOT_DIR, 'logs', 'attacks.jsonl')
+        honeypot_attacks = 0
+        if os.path.exists(attacks_file):
+            try:
+                with open(attacks_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    honeypot_attacks = sum(1 for line in f if line.strip())
+                    if honeypot_attacks > 0:
+                        detection_info['threats_detected'].append({
+                            'type': 'Honeypot Attacks',
+                            'count': honeypot_attacks,
+                            'severity': 'HIGH',
+                            'description': f'{honeypot_attacks} attack attempts captured by honeypot'
+                        })
+            except:
+                pass
+        
+        # Check for network anomalies (DoS attacks)
+        network_attacks_file = os.path.join(HONEYPOT_DIR, 'logs', 'network_attacks.jsonl')
+        dos_attacks = 0
+        if os.path.exists(network_attacks_file):
+            try:
+                with open(network_attacks_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    dos_attacks = sum(1 for line in f if line.strip())
+                    if dos_attacks > 0:
+                        detection_info['anomalies'].append({
+                            'type': 'DoS/DDoS Attacks',
+                            'count': dos_attacks,
+                            'severity': 'CRITICAL',
+                            'description': f'{dos_attacks} network flooding events detected'
+                        })
+            except:
+                pass
+        
+        # Check active containers
+        containers_result = run_wsl_command('docker ps --format "{{.Names}}"')
+        active_containers = []
+        if containers_result['success']:
+            active_containers = [c.strip() for c in containers_result['output'].strip().split('\n') if c.strip()]
+        
+        # Check for active defense mechanisms
+        if any('monitor' in c for c in active_containers):
+            detection_info['active_defenses'].append({
+                'name': 'Network Monitor',
+                'status': 'ACTIVE',
+                'description': 'Zeek-based traffic analysis and file extraction'
+            })
+        
+        if any('beelzebub' in c for c in active_containers):
+            detection_info['active_defenses'].append({
+                'name': 'Honeypot (Beelzebub)',
+                'status': 'ACTIVE',
+                'description': 'Multi-protocol honeypot capturing attack attempts'
+            })
+        
+        # Check for rerouted devices
+        reroutes_log = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
+        rerouted_count = 0
+        if os.path.exists(reroutes_log):
+            try:
+                with open(reroutes_log, 'r') as f:
+                    rerouted_count = sum(1 for line in f if 'Rerouted' in line)
+                    if rerouted_count > 0:
+                        detection_info['active_defenses'].append({
+                            'name': 'Quarantine',
+                            'status': 'ACTIVE',
+                            'description': f'{rerouted_count} devices isolated to honeypot network'
+                        })
+            except:
+                pass
+        
+        # Calculate statistics
+        detection_info['statistics'] = {
+            'total_threats': len(detection_info['threats_detected']),
+            'total_malware': len(detection_info['malware_detected']),
+            'total_anomalies': len(detection_info['anomalies']),
+            'malware_files_count': malware_count,
+            'honeypot_attacks_count': honeypot_attacks,
+            'dos_attacks_count': dos_attacks,
+            'active_defenses_count': len(detection_info['active_defenses']),
+            'rerouted_devices': rerouted_count
+        }
+        
+        # Determine overall network health
+        if detection_info['statistics']['total_threats'] > 10 or detection_info['statistics']['total_malware'] > 5:
+            detection_info['network_health'] = 'CRITICAL'
+        elif detection_info['statistics']['total_threats'] > 5 or detection_info['statistics']['total_malware'] > 0:
+            detection_info['network_health'] = 'WARNING'
+        else:
+            detection_info['network_health'] = 'HEALTHY'
+        
+        return jsonify({
+            'success': True,
+            **detection_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'network_health': 'UNKNOWN',
+            'threats_detected': [],
+            'malware_detected': [],
+            'anomalies': [],
+            'active_defenses': [],
+            'statistics': {}
         })
 
 @app.route('/api/agent/reroute', methods=['POST'])

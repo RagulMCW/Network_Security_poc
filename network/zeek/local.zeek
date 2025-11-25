@@ -22,7 +22,8 @@
 # CONFIGURATION
 # ========================================
 
-redef FileExtract::prefix = "/app/zeek_logs/extracted_files/";
+# Extract files to current directory (session folder) instead of global path
+redef FileExtract::prefix = "./extracted_files/";
 redef FileExtract::default_limit = 10485760;
 redef Log::default_rotation_interval = 0 secs;
 
@@ -67,7 +68,7 @@ event file_over_new_connection(f: fa_file, c: connection, is_orig: bool)
     }
 }
 
-# 3. EICAR and POST Body Detection
+# 3. EICAR and POST Body Detection (Selective)
 event http_entity_data(c: connection, is_orig: bool, length: count, data: string)
 {
     # EICAR Detection
@@ -77,13 +78,37 @@ event http_entity_data(c: connection, is_orig: bool, length: count, data: string
         NOTICE([$note=Signatures::Sensitive_Signature, $msg=notice_msg, $conn=c, $identifier=cat(c$id$orig_h, c$id$resp_h)]);
     }
 
-    # POST Body Extraction (for large uploads)
-    if ( is_orig && c?$http && c$http?$method && c$http$method == "POST" && length > 1000 )
+    # POST Body Extraction - ONLY for specific conditions to avoid device telemetry
+    # Extract ONLY if:
+    # 1. Content-Type is application/octet-stream (raw binary files)
+    # 2. OR has filename in Content-Disposition (actual file uploads)
+    # 3. OR is large (>10KB) to capture malware samples
+    # SKIP device telemetry (JSON data to /api/device/data)
+    if ( is_orig && c?$http && c$http?$method && c$http$method == "POST" )
     {
-        local fname = fmt("%s/post_body_%s.bin", FileExtract::prefix, c$uid);
-        local f = open(fname);
-        print f, data;
-        close(f);
+        local should_extract = F;
+        
+        # Simplified: just check for large files (likely malware samples, not small JSON telemetry)
+        # Zeek 7.0 changed HTTP header access patterns, so skip detailed content-type checks
+        if ( length > 10000 )  # 10KB threshold to avoid small device data
+        {
+            should_extract = T;
+        }
+        
+        # EXCLUDE device telemetry endpoints
+        if ( c$http?$uri && /\/api\/device/ in c$http$uri )
+        {
+            should_extract = F;
+        }
+        
+        # Extract if conditions are met
+        if ( should_extract )
+        {
+            local fname = fmt("%s/post_body_%s.bin", FileExtract::prefix, c$uid);
+            local f = open(fname);
+            print f, data;
+            close(f);
+        }
     }
 }
 

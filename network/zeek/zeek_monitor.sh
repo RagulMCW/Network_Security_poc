@@ -43,6 +43,7 @@ while true; do
     echo "----------------------------------------"
     echo "Starting new session: $SESSION_DIR"
     mkdir -p "$SESSION_DIR"
+    mkdir -p "$SESSION_DIR/extracted_files"
     
     # Start Zeek in the background
     # We use -i for interface and write logs to the session directory

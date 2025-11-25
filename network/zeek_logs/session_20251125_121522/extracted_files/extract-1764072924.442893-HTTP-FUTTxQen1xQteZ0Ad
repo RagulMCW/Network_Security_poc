@@ -1,0 +1,1 @@
+{"device_id": "device_002", "device_type": "generic", "timestamp": "2025-11-25T12:15:24.441998", "ip_address": "192.168.6.3", "mac_address": "1e:ef:b9:d3:70:e7", "uptime_seconds": 3026, "request_number": 1071, "sensor_data": {"status": "ok", "uptime": "normal", "health": "active"}, "metadata": {"firmware_version": "1.0.0", "protocol": "HTTP/1.1", "status": "online"}}
