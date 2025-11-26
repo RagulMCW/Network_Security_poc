@@ -1279,6 +1279,176 @@ function downloadChatHistory() {
     const messages = document.querySelectorAll('.agent-message');
     if (messages.length === 0) { showToast('No history', 'error'); return; }
     
+    // Download as HTML with full styling (default)
+    downloadChatAsHTML(messages);
+}
+
+function downloadChatAsHTML(messages) {
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    // Build HTML with embedded CSS
+    let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Chat History - ${timestamp}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            padding: 2rem;
+            text-align: center;
+            color: white;
+        }
+        .header h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .header p { opacity: 0.9; font-size: 0.9rem; }
+        .chat-messages {
+            padding: 2rem;
+            max-height: none;
+            overflow-y: visible;
+        }
+        .agent-message {
+            margin-bottom: 1.5rem;
+            padding: 1.2rem;
+            border-radius: 12px;
+            animation: slideIn 0.3s ease;
+        }
+        .agent-message.user {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            margin-left: 20%;
+            border-bottom-right-radius: 4px;
+        }
+        .agent-message.agent {
+            background: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            margin-right: 20%;
+            border-bottom-left-radius: 4px;
+        }
+        .agent-message.warning {
+            border-left: 4px solid #f97316;
+            background: rgba(251, 146, 60, 0.1);
+        }
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        .message-header i { font-size: 1rem; }
+        .message-header strong { font-weight: 600; }
+        .message-time {
+            margin-left: auto;
+            font-size: 0.75rem;
+            opacity: 0.7;
+        }
+        .message-content {
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+        .message-content h2, .message-content h3 {
+            margin: 1rem 0 0.5rem 0;
+            color: #60a5fa;
+        }
+        .message-content ul, .message-content ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+        .message-content li { margin: 0.3rem 0; }
+        .message-content code {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #fbbf24;
+        }
+        .message-content pre {
+            background: rgba(15, 23, 42, 0.8);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+            border-left: 3px solid #6366f1;
+        }
+        .message-content pre code {
+            background: none;
+            padding: 0;
+            color: #e2e8f0;
+        }
+        .tool-progress-container {
+            margin-top: 0.8rem;
+            padding: 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            border-left: 3px solid #10b981;
+            border-radius: 6px;
+        }
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.8);
+            color: #94a3b8;
+            font-size: 0.85rem;
+            border-top: 1px solid rgba(100, 116, 139, 0.3);
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Agent Chat History</h1>
+            <p>Network Security Analysis Session - ${timestamp}</p>
+        </div>
+        <div class="chat-messages">
+`;
+    
+    // Add each message with preserved HTML structure
+    messages.forEach(msg => {
+        html += msg.outerHTML + '\n';
+    });
+    
+    html += `        </div>
+        <div class="footer">
+            Generated from Malware Detection Dashboard | ${new Date().toLocaleString()}
+        </div>
+    </div>
+</body>
+</html>`;
+    
+    // Download HTML file
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_history_${Date.now()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Downloaded as HTML (styled)', 'success');
+}
+
+function downloadChatAsTXT(messages) {
     let text = 'AI Agent Chat History\n=====================\n\n';
     messages.forEach(msg => {
         const isUser = msg.classList.contains('user');
@@ -1293,6 +1463,7 @@ function downloadChatHistory() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    showToast('Downloaded as TXT (plain text)', 'success');
 }
 
 // Auto-refresh
