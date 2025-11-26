@@ -82,10 +82,33 @@ class TodoItem:
         return f"{status_icon.get(self.status, '•')} [{self.id}] {self.title}"
 
 
+class NetworkSecurityAgent:
+    """Simplified wrapper for dashboard integration."""
+    
+    def __init__(self):
+        """Initialize with quiet mode for web UI."""
+        self.agent = None
+    
+    async def query(self, query_text: str, tool_callback=None) -> str:
+        """Process a query with optional tool progress callback."""
+        # Create agent with callback
+        self.agent = MCPAgent(quiet=True, tool_callback=tool_callback)
+        
+        try:
+            # Initialize and run query
+            await self.agent.initialize()
+            response = await self.agent.process_query(query_text)
+            return response
+        finally:
+            # Cleanup
+            if self.agent:
+                await self.agent.cleanup()
+
+
 class MCPAgent:
     """AI-powered MCP Agent with intelligent planning and TODO tracking."""
 
-    def __init__(self, server_path: Optional[str] = None, quiet: bool = False):
+    def __init__(self, server_path: Optional[str] = None, quiet: bool = False, tool_callback=None):
         """Initialize the agent with intelligent features."""
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")
         if not self.anthropic_api_key:
@@ -93,6 +116,7 @@ class MCPAgent:
 
         self.anthropic_client = Anthropic(api_key=self.anthropic_api_key)
         self.quiet = quiet
+        self.tool_callback = tool_callback  # Callback for tool progress
         
         # Context management
         self.context_manager = ContextWindowManager()
@@ -107,20 +131,15 @@ class MCPAgent:
         if server_path is None:
             server_path = "E:\\Malware_detection_using_Aiagent\\Network_Security_poc\\mcp_agent\\server\\server.py"
         
-        if not self.quiet:
-            print(f"🔧 DEBUG: Server path: {server_path}")
-            print(f"🔧 DEBUG: Server exists: {Path(server_path).exists()}")
-        
         self.mcp_client = Client(server_path)
         self.tools = []
         
         # Docker availability
         self.docker_in_wsl = self._check_docker_in_wsl()
 
+        # Only print minimal info
         if not self.quiet:
-            print("✅ Agent initialized")
-            if self.docker_in_wsl:
-                print("📌 Docker found in WSL")
+            print("✅ Agent Ready")
             print()
 
     def _check_docker_in_wsl(self) -> bool:
@@ -139,48 +158,21 @@ class MCPAgent:
     async def initialize(self):
         """Initialize MCP client and load tools."""
         try:
-            print("🔧 DEBUG: Starting MCP client initialization...")
-            print(f"🔧 DEBUG: MCP client type: {type(self.mcp_client)}")
-            print(f"🔧 DEBUG: MCP client transport: {type(self.mcp_client.transport)}")
-            
-            # Enter the client context (keeps connection alive)
-            print("🔧 DEBUG: Entering client context...")
+            # Silent initialization - no debug output
             await self.mcp_client.__aenter__()
-            print("🔧 DEBUG: Client context entered successfully")
-            
-            # Check if client is initialized
-            print(f"🔧 DEBUG: Client initialized: {self.mcp_client.initialize_result is not None}")
-            if self.mcp_client.initialize_result:
-                print(f"🔧 DEBUG: Server name: {self.mcp_client.initialize_result.serverInfo.name}")
-                print(f"🔧 DEBUG: Server capabilities: {self.mcp_client.initialize_result.capabilities}")
             
             # Load tools from the connected client
-            print("🔧 DEBUG: Calling list_tools()...")
             tools_result = await self.mcp_client.list_tools()
-            print(f"🔧 DEBUG: tools_result type: {type(tools_result)}")
-            # print(f"🔧 DEBUG: tools_result: {tools_result}")
             
             if hasattr(tools_result, 'tools'):
                 self.tools = tools_result.tools
-                print(f"🔧 DEBUG: Found {len(self.tools)} tools via .tools attribute")
+            elif isinstance(tools_result, list):
+                self.tools = tools_result
             else:
-                print(f"🔧 DEBUG: No .tools attribute, checking if result is list...")
-                if isinstance(tools_result, list):
-                    self.tools = tools_result
-                    print(f"🔧 DEBUG: Result is list with {len(self.tools)} tools")
-                else:
-                    self.tools = []
-                    print(f"🔧 DEBUG: Could not extract tools from result")
+                self.tools = []
             
-            if self.tools:
-                print(f"\n✓ Loaded {len(self.tools)} MCP tools:")
-                for i, tool in enumerate(self.tools[:5], 1):  # Show first 5
-                    tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-                    print(f"  {i}. {tool_name}")
-                if len(self.tools) > 5:
-                    print(f"  ... and {len(self.tools) - 5} more")
-            else:
-                print(f"\n⚠ WARNING: No tools loaded from server")
+            if not self.quiet and self.tools:
+                print(f"✓ Loaded {len(self.tools)} tools\n")
                 
         except Exception as e:
             print(f"❌ ERROR: Could not load tools - {e}")
@@ -634,10 +626,6 @@ Context: {self.context_manager.get_status_display()}"""
                 tool_def["input_schema"] = tool.inputSchema
             tool_definitions.append(tool_def)
         
-        if not self.quiet and tool_definitions:
-            print(f"\n🔧 DEBUG: Sending {len(tool_definitions)} tool definitions to glm-4.5")
-            print(f"🔧 DEBUG: Tool names: {[t['name'] for t in tool_definitions[:5]]}")
-        
         try:
             # Multi-turn conversation loop
             iteration = 0
@@ -646,9 +634,6 @@ Context: {self.context_manager.get_status_display()}"""
             
             while iteration < max_iterations:
                 iteration += 1
-                
-                if not self.quiet:
-                    print(f"\n🔄 Iteration {iteration}/{max_iterations}")
                 
                 # Call glm-4.5
                 response = self.anthropic_client.messages.create(
@@ -659,19 +644,15 @@ Context: {self.context_manager.get_status_display()}"""
                     tools=tool_definitions if tool_definitions else None
                 )
                 
-                # Update token usage
+                # Update token usage silently
                 if hasattr(response, 'usage'):
                     self.context_manager.update_usage(
                         response.usage.input_tokens,
                         response.usage.output_tokens
                     )
-                    if not self.quiet:
-                        print(f"{self.context_manager.get_status_display()}")
                 
                 # Check stop reason
                 stop_reason = response.stop_reason
-                if not self.quiet:
-                    print(f"🔧 DEBUG: Stop reason: {stop_reason}")
                 
                 # Process response content
                 response_text = ""
@@ -682,10 +663,6 @@ Context: {self.context_manager.get_status_display()}"""
                         response_text += block.text
                     elif hasattr(block, 'type') and block.type == 'tool_use':
                         tool_calls.append(block)
-                
-                # Display text response if any
-                if response_text and not self.quiet:
-                    print(f"\n💬 glm-4.5 says: {response_text[:200]}{'...' if len(response_text) > 200 else ''}")
                 
                 # Parse plan on first iteration
                 if iteration == 1:
@@ -707,14 +684,10 @@ Context: {self.context_manager.get_status_display()}"""
                 
                 # If no tool calls, we're done
                 if stop_reason == "end_turn" or not tool_calls:
-                    if not self.quiet:
-                        print(f"\n✅ Conversation complete (no more tool calls)")
                     break
                 
                 # Execute tool calls
                 if tool_calls:
-                    if not self.quiet:
-                        print(f"\n🔧 DEBUG: glm-4.5 requested {len(tool_calls)} tool call(s)")
                     
                     # Add assistant message with tool calls
                     assistant_message = {
@@ -731,12 +704,13 @@ Context: {self.context_manager.get_status_display()}"""
                         if todo_id <= len(self.todos):
                             self._update_todo_status(todo_id, "in-progress")
                         
+                        # Simple tool progress output (just the name)
                         if not self.quiet:
-                            print(f"\n🔧 Tool Call #{i+1}:")
-                            print(f"   Name: {tool_call.name}")
-                            print(f"   ID: {tool_call.id if hasattr(tool_call, 'id') else 'N/A'}")
-                            if hasattr(tool_call, 'input'):
-                                print(f"   Input: {json.dumps(tool_call.input, indent=6)}")
+                            print(f"🔧 {tool_call.name}")
+                        
+                        # Call tool callback if provided (for web UI)
+                        if self.tool_callback:
+                            self.tool_callback(tool_call.name, 'running')
                         
                         # Call the tool
                         tool_result_text = await self.call_mcp_tool(
@@ -744,15 +718,16 @@ Context: {self.context_manager.get_status_display()}"""
                             tool_call.input if hasattr(tool_call, 'input') else {}
                         )
                         
-                        if not self.quiet:
-                            print(f"✓ Result preview: {tool_result_text[:200]}...")
-                        
                         # Build tool result for Anthropic API
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tool_call.id,
                             "content": tool_result_text
                         })
+                        
+                        # Mark as completed
+                        if self.tool_callback:
+                            self.tool_callback(tool_call.name, 'completed')
                         
                         if todo_id <= len(self.todos):
                             self._update_todo_status(todo_id, "completed")

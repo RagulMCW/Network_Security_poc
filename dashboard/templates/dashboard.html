@@ -18,6 +18,9 @@
     
     <!-- Vis.js -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <!-- Navigation -->
@@ -25,7 +28,7 @@
         <div class="nav-container">
             <div class="logo">
                 <i class="fas fa-shield-halved"></i>
-                <span>NetSec<span style="color: var(--primary)">Guard</span></span>
+                <span>Malware<span style="color: var(--primary)"></span>Detection</span>
             </div>
             <div class="nav-links">
                 <button class="nav-btn active" onclick="showPage('overview', event)">
@@ -751,21 +754,20 @@
                 <div id="agent-chat-messages" class="chat-messages">
                     <!-- Welcome Message -->
                     <div class="agent-message agent">
-                        <div style="display: flex; align-items: start; gap: 15px;">
-                            <i class="fas fa-robot text-primary" style="font-size: 1.5em; margin-top: 3px;"></i>
-                            <div>
-                                <div style="color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">AI Network Security Expert</div>
-                                <div>
-                                    Professional AI agent for Docker network security monitoring and threat analysis.
-                                    <ul style="margin: 10px 0; padding-left: 20px;">
-                                        <li>Analyze Zeek network traffic logs</li>
-                                        <li>Detect malware behaviors and attack patterns</li>
-                                        <li>Monitor Docker network (custom_net: 192.168.6.0/24)</li>
-                                        <li>Identify suspicious connections and anomalies</li>
-                                        <li>Generate security reports and recommendations</li>
-                                    </ul>
-                                </div>
-                            </div>
+                        <div class="message-header">
+                            <i class="fas fa-robot"></i>
+                            <strong>AI Security Agent</strong>
+                            <span class="message-time">Now</span>
+                        </div>
+                        <div class="message-content">
+                            Professional AI agent for Docker network security monitoring and threat analysis.
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li>Analyze Zeek network traffic logs</li>
+                                <li>Detect malware behaviors and attack patterns</li>
+                                <li>Monitor Docker network (custom_net: 192.168.6.0/24)</li>
+                                <li>Identify suspicious connections and anomalies</li>
+                                <li>Generate security reports and recommendations</li>
+                            </ul>
                         </div>
                     </div>
                 </div>

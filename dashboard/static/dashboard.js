@@ -1110,7 +1110,15 @@ async function sendAgentQuery() {
     
     input.value = '';
     addAgentMessage('user', query);
-    const thinkingId = addAgentMessage('agent', '🤔 Thinking...', true);
+    
+    // Add tool progress tracking message
+    const progressHtml = `
+        <div class="tool-progress-container">
+            <strong>🤖 Processing Query...</strong>
+            <div id="tools-progress-list" class="tools-list"></div>
+        </div>
+    `;
+    const thinkingId = addAgentMessage('agent', progressHtml, true);
     
     try {
         const response = await fetch('/api/agent/query', {
@@ -1118,10 +1126,30 @@ async function sendAgentQuery() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query })
         });
+        
         const data = await response.json();
+        
         removeAgentMessage(thinkingId);
         
         if (data.success) {
+            // Parse tools from full_output if available
+            if (data.full_output) {
+                const toolMatches = data.full_output.match(/🔧\s+(\w+)/g);
+                if (toolMatches && toolMatches.length > 0) {
+                    // Show tools used (filter out DEBUG and duplicates)
+                    const toolsUsed = [...new Set(toolMatches
+                        .map(m => m.replace('🔧 ', '').trim())
+                        .filter(t => t !== 'DEBUG' && t !== 'Tool' && !t.startsWith('DEBUG'))
+                    )];
+                    
+                    if (toolsUsed.length > 0) {
+                        const toolsText = '🔧 **Tools Used:**\n\n' + toolsUsed.map(t => `✅ ${t}`).join('\n');
+                        addAgentMessage('agent', toolsText);
+                    }
+                }
+            }
+            
+            // Show final response
             addAgentMessage('agent', data.response);
             agentQueriesCount++;
             document.getElementById('agent-queries-count').textContent = agentQueriesCount;
@@ -1143,21 +1171,38 @@ function addAgentMessage(role, content, isThinking = false) {
     const chatContainer = document.getElementById('agent-chat-messages');
     const messageId = `msg-${Date.now()}`;
     const messageDiv = document.createElement('div');
+    
+    // Check for warning keywords to apply orange style
+    let isWarning = false;
+    if (role === 'agent' && !isThinking) {
+        const lowerContent = content.toLowerCase();
+        if (lowerContent.includes('threat') || 
+            lowerContent.includes('malware') || 
+            lowerContent.includes('attack') || 
+            lowerContent.includes('alert') ||
+            lowerContent.includes('critical') ||
+            lowerContent.includes('orange')) {
+            isWarning = true;
+        }
+    }
+
     messageDiv.id = messageId;
-    messageDiv.className = `agent-message ${role}`;
+    messageDiv.className = `agent-message ${role} ${isWarning ? 'warning' : ''}`;
     
     if (isThinking) messageDiv.style.opacity = '0.7';
     
-    const icon = role === 'user' ? 'fa-user-circle' : 'fa-robot';
-    const title = role === 'user' ? 'You' : 'AI Agent';
+    const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+    const title = role === 'user' ? 'You' : 'AI Security Agent';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     messageDiv.innerHTML = `
-        <div style="display: flex; align-items: start; gap: 10px;">
-            <i class="fas ${icon}" style="font-size: 1.5em; margin-top: 3px;"></i>
-            <div style="flex: 1;">
-                <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
-                <div style="white-space: pre-wrap; line-height: 1.6;">${role === 'agent' ? formatAgentResponse(content) : escapeHtml(content)}</div>
-            </div>
+        <div class="message-header">
+            <i class="fas ${icon}"></i>
+            <strong>${title}</strong>
+            <span class="message-time">${time}</span>
+        </div>
+        <div class="message-content">
+            ${role === 'agent' ? formatAgentResponse(content) : escapeHtml(content)}
         </div>
     `;
     
@@ -1172,10 +1217,54 @@ function removeAgentMessage(messageId) {
 }
 
 function formatAgentResponse(text) {
+    // Use marked.js to parse markdown if available
+    if (typeof marked !== 'undefined') {
+        // Configure marked to break on single newlines
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+        
+        let html = marked.parse(text);
+        
+        // Post-process for specific highlighting (IPs, devices)
+        html = html.replace(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/g, '<code class="font-mono text-info" style="background: rgba(59,130,246,0.1); padding: 2px 4px; border-radius: 3px;">$1</code>');
+        html = html.replace(/device_\w+/gi, '<code class="font-mono text-success" style="background: rgba(16,185,129,0.1); padding: 2px 4px; border-radius: 3px;">$&</code>');
+        
+        return html;
+    }
+
+    // Fallback if marked is not loaded
     let formatted = escapeHtml(text);
     formatted = formatted.replace(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/g, '<code class="font-mono text-info" style="background: rgba(59,130,246,0.1); padding: 2px 4px; border-radius: 3px;">$1</code>');
     formatted = formatted.replace(/device_\w+/gi, '<code class="font-mono text-success" style="background: rgba(16,185,129,0.1); padding: 2px 4px; border-radius: 3px;">$&</code>');
     return formatted;
+}
+
+function updateToolProgress(toolName, status = 'running') {
+    const toolsList = document.getElementById('tools-progress-list');
+    if (!toolsList) return;
+    
+    const toolId = `tool-${toolName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    let toolItem = document.getElementById(toolId);
+    
+    if (!toolItem) {
+        toolItem = document.createElement('div');
+        toolItem.id = toolId;
+        toolItem.className = 'tool-item';
+        toolsList.appendChild(toolItem);
+    }
+    
+    const icon = status === 'completed' ? '✅' : status === 'error' ? '❌' : '⚙️';
+    const statusClass = status === 'completed' ? 'text-success' : status === 'error' ? 'text-danger' : 'text-info';
+    
+    toolItem.innerHTML = `<span class="${statusClass}">${icon} ${toolName}</span>`;
+    
+    if (status === 'completed' || status === 'error') {
+        setTimeout(() => {
+            toolItem.style.opacity = '0.6';
+        }, 500);
+    }
 }
 
 function clearAgentChat() {
