@@ -20,37 +20,53 @@ DEVICE_TYPE = os.getenv('DEVICE_TYPE', 'generic')
 SERVER_URL = os.getenv('SERVER_URL', 'http://192.168.6.131:5002')
 REQUEST_INTERVAL = int(os.getenv('REQUEST_INTERVAL', '1'))
 
+# Realistic user agents for IoT devices
+USER_AGENTS = [
+    'IoTDevice/2.1 (Linux; Android 9.0)',
+    'Mozilla/5.0 (compatible; IoT-Gateway/1.0)',
+    'DeviceClient/3.2.1 (ARM; Linux)',
+    'SensorHub/1.5.0',
+    'SmartHome/2.0 (ESP32)',
+    'MQTTClient/1.0',
+    'HTTPClient/2.3.1'
+]
+
 # Device types and their behaviors
 DEVICE_TYPES = {
     'iot_sensor': {
         'data': ['temperature', 'humidity', 'pressure'],
         'interval_range': (5, 15),  # More realistic: 5-15 seconds
         'payload_size': 'small',
-        'burst_chance': 0.1  # 10% chance of burst mode
+        'burst_chance': 0.1,  # 10% chance of burst mode
+        'sleep_chance': 0.05  # 5% chance of going offline briefly
     },
     'smartphone': {
         'data': ['location', 'battery', 'network_status'],
         'interval_range': (8, 20),  # Smartphones report less frequently
         'payload_size': 'medium',
-        'burst_chance': 0.05
+        'burst_chance': 0.05,
+        'sleep_chance': 0.03
     },
     'laptop': {
         'data': ['cpu_usage', 'memory_usage', 'disk_usage', 'network_traffic'],
         'interval_range': (10, 30),  # Laptops report less frequently
         'payload_size': 'large',
-        'burst_chance': 0.15
+        'burst_chance': 0.15,
+        'sleep_chance': 0.02
     },
     'camera': {
         'data': ['motion_detected', 'recording_status', 'storage_used'],
         'interval_range': (3, 12),  # Cameras may report on motion
         'payload_size': 'medium',
-        'burst_chance': 0.2  # More bursts when motion detected
+        'burst_chance': 0.2,  # More bursts when motion detected
+        'sleep_chance': 0.01
     },
     'generic': {
         'data': ['status', 'uptime', 'health'],
         'interval_range': (7, 18),  # Generic devices vary
         'payload_size': 'small',
-        'burst_chance': 0.05
+        'burst_chance': 0.05,
+        'sleep_chance': 0.05
     }
 }
 
@@ -69,11 +85,14 @@ class VirtualDevice:
         self.last_sensor_values = {}  # Track previous values for realistic drift
         self.in_burst_mode = False
         self.burst_counter = 0
+        self.user_agent = random.choice(USER_AGENTS)  # Random but consistent user agent
+        self.connection_failures = 0
         
         print(f"[{self.device_id}] Virtual device initialized")
         print(f"  Type: {self.device_type}")
         print(f"  IP: {self.ip_address}")
         print(f"  MAC: {self.mac_address}")
+        print(f"  User-Agent: {self.user_agent}")
         print(f"  Server: {SERVER_URL}")
         print("-" * 50)
     
@@ -219,31 +238,52 @@ class VirtualDevice:
                 'action': 'register'
             }
             
+            headers = {
+                'User-Agent': self.user_agent,
+                'Content-Type': 'application/json'
+            }
+            
             response = requests.post(
                 f"{SERVER_URL}/api/device/register",
                 json=payload,
+                headers=headers,
                 timeout=5
             )
             
             if response.status_code == 200:
                 print(f"[{self.device_id}] Successfully registered with server")
+                self.connection_failures = 0
                 return True
             else:
                 print(f"[{self.device_id}] Registration failed: {response.status_code}")
+                self.connection_failures += 1
                 return False
                 
         except requests.exceptions.RequestException as e:
             print(f"[{self.device_id}] Registration error: {e}")
+            self.connection_failures += 1
             return False
     
     def send_data(self):
         """Send data to the server"""
         try:
+            # Simulate occasional network failures (1% chance)
+            if random.random() < 0.01:
+                print(f"[{self.device_id}] Simulated network timeout")
+                self.connection_failures += 1
+                return False
+            
             payload = self.create_payload()
+            
+            headers = {
+                'User-Agent': self.user_agent,
+                'Content-Type': 'application/json'
+            }
             
             response = requests.post(
                 f"{SERVER_URL}/api/device/data",
                 json=payload,
+                headers=headers,
                 timeout=5
             )
             

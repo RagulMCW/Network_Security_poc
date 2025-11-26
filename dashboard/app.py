@@ -194,7 +194,8 @@ def get_status():
     dos_attacker_running = any(c['name'] == 'hping3-attacker' for c in containers)
     ssh_attacker_running = any(c['name'] == 'ssh-attacker' for c in containers)
     malware_attacker_running = any(c['name'] == 'malware_attacker' for c in containers)
-    attacker_running = dos_attacker_running or ssh_attacker_running or malware_attacker_running
+    endpoint_behavior_attacker_running = any(c['name'] == 'endpoint_behavior_attacker' for c in containers)
+    attacker_running = dos_attacker_running or ssh_attacker_running or malware_attacker_running or endpoint_behavior_attacker_running
     
     # Check network monitor (fast - name matching)
     monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor'] for c in containers)
@@ -219,6 +220,7 @@ def get_status():
             'dos_running': dos_attacker_running,
             'ssh_running': ssh_attacker_running,
             'malware_running': malware_attacker_running,
+            'endpoint_behavior_running': endpoint_behavior_attacker_running,
             'containers': [c for c in containers if 'attacker' in c['name']]
         },
         'monitor': {
@@ -1070,8 +1072,6 @@ def reroute_to_beelzebub():
     
     print(f"✅ Applied traffic redirection rules for {ip_address} → {honeypot_target_ip}")
     
-    print(f"✅ Applied traffic redirection rules for {ip_address} → {honeypot_target_ip}")
-    
     # Step 6: Log the reroute (with rotation - keep last 100 entries)
     log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Rerouted {container_name} ({ip_address}) → Honeypot ({honeypot_target_ip}) | Device Honeypot IP: {device_honeypot_ip}"
     
@@ -1273,11 +1273,6 @@ def remove_reroute():
     
     if not disconnect_result['success']:
         print(f"Warning: Could not disconnect from honeypot network: {disconnect_result['output']}")
-    
-    # Step 4: Get current IP on custom_net (should be same as before)
-    get_final_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
-    final_ip_result = run_wsl_command(get_final_ip_cmd)
-    final_ip = final_ip_result['output'].strip() if final_ip_result['success'] else 'unknown'
     
     # Step 4: Get current IP on custom_net (should be same as before)
     get_final_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}"'
@@ -1658,11 +1653,94 @@ def get_malware_attacker_status():
         'running': is_running,
         'status': status['output'].strip() if is_running else 'Not running',
         'ip_address': ip_address,
+        'detection_type': 'Case 1: Signature-Based',
+        'behaviors': {
+            'malware_upload': 'Active' if is_running else 'Stopped'
+        }
+    })
+
+# ===== Endpoint Behavior Attacker Control (Case 2) =====
+
+@app.route('/api/endpoint_behavior_attacker/start', methods=['POST'])
+def start_endpoint_behavior_attacker():
+    """Start endpoint behavior attacker (Case 2 - Anomaly Detection)"""
+    
+    # Ensure network exists
+    network_check = run_wsl_command('docker network ls | grep custom_net')
+    if not (network_check['success'] and 'custom_net' in network_check['output']):
+        return jsonify({
+            'success': False,
+            'message': 'Network does not exist. Create network first.'
+        })
+    
+    # Start endpoint behavior attacker using docker compose
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/endpoint_behavior_attacker && docker compose up -d --build', timeout=180)
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'Endpoint Behavior Attacker started successfully' if result['success'] else result['error'],
+        'output': result['output']
+    })
+
+@app.route('/api/endpoint_behavior_attacker/stop', methods=['POST'])
+def stop_endpoint_behavior_attacker():
+    """Stop endpoint behavior attacker"""
+    
+    # Stop the container
+    result = run_wsl_command('cd /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/endpoint_behavior_attacker && docker compose down')
+    
+    return jsonify({
+        'success': result['success'],
+        'message': 'Endpoint Behavior Attacker stopped successfully' if result['success'] else result['error']
+    })
+
+@app.route('/api/endpoint_behavior_attacker/logs', methods=['GET'])
+def get_endpoint_behavior_attacker_logs():
+    """Get endpoint behavior attacker logs"""
+    
+    # Get container logs
+    container_logs = run_wsl_command('docker logs --tail 100 endpoint_behavior_attacker 2>&1')
+    
+    # Get file logs
+    file_logs = run_wsl_command('cat /mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/endpoint_behavior_attacker/logs/behavior_simulator.log 2>/dev/null | tail -100 || echo "No logs yet"')
+    
+    return jsonify({
+        'success': True,
+        'container_logs': container_logs['output'] if container_logs['success'] else 'Container not running',
+        'file_logs': file_logs['output']
+    })
+
+@app.route('/api/endpoint_behavior_attacker/status', methods=['GET'])
+def get_endpoint_behavior_attacker_status():
+    """Get endpoint behavior attacker container status"""
+    
+    # Check if container is running
+    status = run_wsl_command('docker ps -f name=endpoint_behavior_attacker --format "{{.Status}}"')
+    is_running = status['success'] and status['output'].strip() != ''
+    
+    # Get container IP if running (configured IP: 192.168.6.201)
+    ip_address = '192.168.6.201'
+    if is_running:
+        ip_result = run_wsl_command('docker inspect -f "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" endpoint_behavior_attacker')
+        if ip_result['success']:
+            ip_address = ip_result['output'].strip()
+    
+    return jsonify({
+        'success': True,
+        'running': is_running,
+        'status': status['output'].strip() if is_running else 'Not running',
+        'ip_address': ip_address,
+        'detection_type': 'Case 2: Behavior/Anomaly-Based',
         'behaviors': {
             'c2_beacon': 'Active' if is_running else 'Stopped',
-            'exfiltration': 'Active' if is_running else 'Stopped',
-            'eicar_upload': 'Active' if is_running else 'Stopped',
-            'dns_dga': 'Active' if is_running else 'Stopped'
+            'data_exfiltration': 'Active' if is_running else 'Stopped',
+            'dns_dga': 'Active' if is_running else 'Stopped',
+            'port_scanning': 'Active' if is_running else 'Stopped',
+            'api_abuse': 'Active' if is_running else 'Stopped',
+            'credential_harvesting': 'Active' if is_running else 'Stopped',
+            'privilege_escalation': 'Active' if is_running else 'Stopped',
+            'lateral_movement': 'Active' if is_running else 'Stopped',
+            'data_staging': 'Active' if is_running else 'Stopped'
         }
     })
 

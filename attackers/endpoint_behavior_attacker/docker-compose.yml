@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  endpoint_behavior_attacker:
+    build: .
+    container_name: endpoint_behavior_attacker
+    networks:
+      custom_net:
+        ipv4_address: 192.168.6.201
+    environment:
+      - TARGET_IP=192.168.6.131
+      - TARGET_PORT=5000
+      - C2_INTERVAL=5
+      - EXFIL_INTERVAL=15
+      - DNS_INTERVAL=20
+      - SCAN_INTERVAL=10
+      - API_ABUSE_INTERVAL=5
+      - CREDENTIAL_ACCESS_INTERVAL=8
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+networks:
+  custom_net:
+    external: true
