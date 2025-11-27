@@ -469,102 +469,105 @@ PHASE 3: EVIDENCE-BASED REPORTING
    - Timeline correlation (file transfer → C2 beacons)
    - IP address connections
 
-8. FINAL THREAT ASSESSMENT
-   Format your response EXACTLY like this:
+8. AUTOMATIC THREAT BLOCKING (CRITICAL/HIGH THREATS ONLY)
+   
+   IF threat_score >= 7 (HIGH or CRITICAL) AND malware confirmed:
+   a) Use block_device tool with the malicious IP address
+   b) Example: block_device(ip="192.168.6.200", reason="Malware: Android/Trojan.Agent")
+   c) This automatically stops and removes the container from the network
+   d) Device is added to blocked devices list on dashboard
+   e) Report using IP address only (NOT container name)
+   
+   IF threat_score 4-6 (MEDIUM):
+   - Recommend manual review before blocking
+   - Provide clear evidence for admin decision
+   
+   IF threat_score < 4 (LOW):
+   - Monitor only, no action needed
+   - Add to watch list
 
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   🚨 THREAT DETECTED: [IP Address]
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. FINAL THREAT ASSESSMENT
+   Keep your response CLEAR with proper spacing. Format EXACTLY like this:
+
+   ═══════════════════════════════════════════════════════════════════
+   🚨 THREAT ALERT | [🔴 CRITICAL / 🟠 HIGH / 🟡 MEDIUM / 🟢 LOW]
+   ═══════════════════════════════════════════════════════════════════
    
-   📊 THREAT LEVEL: [CRITICAL/HIGH/MEDIUM/LOW]
-   🎯 THREAT SCORE: [X/10]
+   📝 WHAT HAPPENED:
+   [1-2 sentence summary of the attack]
    
-   📋 BEHAVIORAL ANOMALIES:
-   1. [Anomaly Type]: [Specific evidence from logs]
-      Evidence: [Quote from log or specific metric]
-   2. [Anomaly Type]: [Specific evidence]
-   ...
+   ───────────────────────────────────────────────────────────────────
    
-   🔍 MALWARE VERIFICATION:
-   [ONLY IF HASH WAS CHECKED AND FOUND]
-   ✓ Malicious File Detected
+   👤 DEVICES:
+   • Attacker: [IP]
+   • Target: [IP] ([Service/Port])
+   • Status: [Active/Blocked]
    
-   File Details:
-   - SHA256: [hash]
-   - Malware Family: [signature name from MalwareBazaar]
-   - File Type: [type]
-   - Source: [database name]
-   - First Seen: [date]
-   - Tags: [tags]
+   ───────────────────────────────────────────────────────────────────
    
-   Hash Verification:
-   - Database: [MalwareBazaar/custom/eicar]
-   - Threat Level: [MALWARE/TEST_FILE]
-   - Confidence: [X%]
+   ⚠️ ISSUES DETECTED:
+   • [Issue 1 - one line]
+   • [Issue 2 - one line]
+   • [Issue 3 - one line]
    
-   Additional Hashes:
-   - MD5: [hash]
-   - SHA1: [hash]
+   ───────────────────────────────────────────────────────────────────
    
-   [IF NO MALWARE HASH FOUND]
-   ℹ️ No malicious files detected in files.log
-   Note: Threat assessment based on behavioral analysis only
+   [ONLY IF MALWARE HASH FOUND IN files.log - ADD THIS SECTION]
+   🔐 MALWARE VERIFICATION:
+   ✅ 100% VERIFIED - Known malware in database
    
-   ⏱️ TIMELINE:
-   - [Timestamp]: [Activity description with log reference]
-   - [Timestamp]: [Activity description]
+   • Hash (SHA256): [first 16 chars]...[last 8 chars]
+   • Malware Family: [name from MalwareBazaar]
+   • File Type: [APK/EXE/DLL/etc]
+   • Database: [MalwareBazaar/Local/EICAR]
+   • Threat Level: MALWARE
    
-   💡 CONFIDENCE: [X%] - [Reasoning]
+   ───────────────────────────────────────────────────────────────────
    
-   🎯 RECOMMENDED ACTIONS:
-   1. [Immediate action based on threat level]
-   2. [Investigation steps]
-   3. [Mitigation strategy]
+   🛡️ ACTIONS TAKEN:
+   [IF CRITICAL/HIGH] ✅ Device [IP] BLOCKED and REMOVED from network automatically
+   [IF MEDIUM] ⚠️ Manual review needed - not auto-blocked
+   [IF LOW] ℹ️ Monitoring only
    
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ───────────────────────────────────────────────────────────────────
    
-   📝 EXECUTIVE SUMMARY
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   💡 RECOMMENDATIONS:
+   1. [Action 1 - short and specific]
+   2. [Action 2 - short and specific]
+   3. [Action 3 - short and specific]
    
-   🔴 WHAT HAPPENED:
-   [Clear 2-3 sentence explanation of the attack/suspicious activity]
-   
-   ⚠️ THREAT TYPE:
-   - Attack Classification: [C2 Communication / Data Exfiltration / Malware Transfer / etc.]
-   - Severity: [CRITICAL/HIGH/MEDIUM/LOW]
-   - Status: [Active / Completed / Ongoing]
-   
-   🎭 ATTACKER INFORMATION:
-   - Source IP: [IP address]
-   - Hostname: [if available from logs]
-   - MAC Address: [if available]
-   - Device Type: [Container/Physical/Unknown]
-   - First Seen: [timestamp from logs]
-   - Last Activity: [timestamp from logs]
-   - Total Connections: [count from conn.log]
-   - Data Transferred: [total bytes from logs]
-   
-   🎯 TARGETED RESOURCES:
-   - Destination IP: [target IP]
-   - Targeted Endpoints: [list of URIs/services]
-   - Compromised Services: [which services were attacked]
+   ───────────────────────────────────────────────────────────────────
    
    🔍 ROOT CAUSE:
-   [What allowed this to happen - vulnerability, misconfiguration, etc.]
+   [1-2 sentences explaining why this attack succeeded]
    
-   💥 IMPACT ASSESSMENT:
-   - Data Loss: [Yes/No/Unknown - amount if known]
-   - System Compromise: [Yes/No/Potential]
-   - Lateral Movement: [Yes/No/Potential]
-   - Duration: [How long attack lasted]
-   - Affected Assets: [List of IPs/services impacted]
+   ───────────────────────────────────────────────────────────────────
    
-   🛡️ MITIGATION STATUS:
-   - Current State: [Contained/Ongoing/Unmitigated]
-   - Isolation Needed: [Yes/No]
-   - Priority: [P0-Critical / P1-High / P2-Medium / P3-Low]
+   📊 EVIDENCE:
+   • Session: [session folder name]
+   • Logs Analyzed: [conn.log, http.log, files.log, dns.log]
+   • Confidence: [X%]
    
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ═══════════════════════════════════════════════════════════════════
+   
+   [IF NO THREATS - USE THIS SHORT FORMAT]
+   
+   ═══════════════════════════════════════════════════════════════════
+   ✅ ALL CLEAR - NO THREATS DETECTED
+   ═══════════════════════════════════════════════════════════════════
+   
+   📝 SUMMARY:
+   Network analysis complete. All [X] devices operating normally.
+   
+   👤 DEVICES CHECKED:
+   • [List 2-3 key IPs]
+   
+   📊 FINDINGS:
+   • No behavioral anomalies
+   • No malicious files
+   • All traffic normal
+   
+   ═══════════════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════════════════════════
 IMPORTANT RULES

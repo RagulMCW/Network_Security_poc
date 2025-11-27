@@ -36,12 +36,56 @@ NETWORK_DIR = os.path.join(BASE_DIR, 'network')
 DEVICES_DIR = os.path.join(BASE_DIR, 'devices')
 HONEYPOT_DIR = os.path.join(BASE_DIR, 'honey_pot')
 ATTACKERS_DIR = os.path.join(BASE_DIR, 'attackers', 'dos_attacker')
+BLOCKED_DEVICES_FILE = os.path.join(BASE_DIR, 'dashboard', 'blocked_devices.json')
 
 # WSL paths (converted)
 WSL_NETWORK_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/network'
 WSL_DEVICES_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/devices'
 WSL_HONEYPOT_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/honey_pot'
 WSL_ATTACKERS_DIR = '/mnt/e/Malware_detection_using_Aiagent/Network_Security_poc/attackers/dos_attacker'
+
+def load_blocked_devices():
+    """Load blocked devices from JSON file"""
+    try:
+        if os.path.exists(BLOCKED_DEVICES_FILE):
+            with open(BLOCKED_DEVICES_FILE, 'r') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        print(f"Error loading blocked devices: {e}")
+        return []
+
+def save_blocked_devices(blocked_devices):
+    """Save blocked devices to JSON file"""
+    try:
+        with open(BLOCKED_DEVICES_FILE, 'w') as f:
+            json.dump(blocked_devices, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving blocked devices: {e}")
+        return False
+
+def add_blocked_device(ip, reason="Malware detected", container_id=None):
+    """Add a device to blocked list"""
+    blocked = load_blocked_devices()
+    # Check if already blocked
+    if not any(d['ip'] == ip for d in blocked):
+        blocked.append({
+            'ip': ip,
+            'blocked_at': datetime.now().isoformat(),
+            'reason': reason,
+            'container_id': container_id,
+            'status': 'blocked'
+        })
+        save_blocked_devices(blocked)
+    return True
+
+def remove_blocked_device(ip):
+    """Remove a device from blocked list"""
+    blocked = load_blocked_devices()
+    blocked = [d for d in blocked if d['ip'] != ip]
+    save_blocked_devices(blocked)
+    return True
 
 def run_wsl_command(command, timeout=30):
     """Execute WSL command and return output"""
@@ -200,6 +244,9 @@ def get_status():
     # Check network monitor (fast - name matching)
     monitor_running = any(c['name'] in ['monitor', 'net-monitor-wan', 'network-monitor'] for c in containers)
     
+    # Load blocked devices
+    blocked_devices = load_blocked_devices()
+    
     return jsonify({
         'network': {
             'exists': network_exists,
@@ -210,6 +257,7 @@ def get_status():
             'containers': device_containers
         },
         'production_devices': production_devices,
+        'blocked_devices': blocked_devices,
         'beelzebub': {
             'running': beelzebub_running,
             'containers': [c for c in containers if 'beelzebub' in c['name'].lower()],
@@ -406,6 +454,97 @@ def cleanup_devices():
         'message': 'Cleanup completed',
         'removed_containers': rm_containers['output']
     })
+
+@app.route('/api/devices/block', methods=['POST'])
+def block_device():
+    """Block a device by IP address - stops and removes the container"""
+    data = request.get_json()
+    ip = data.get('ip')
+    reason = data.get('reason', 'Malware detected by AI agent')
+    
+    if not ip:
+        return jsonify({'success': False, 'message': 'IP address required'}), 400
+    
+    try:
+        # Get all containers with their networks
+        ps_result = run_wsl_command('docker ps --format "{{.ID}}:{{.Names}}"', timeout=10)
+        
+        container_found = False
+        container_id = None
+        container_name = None
+        
+        if ps_result['success'] and ps_result['output'].strip():
+            # Check each container for the IP
+            for line in ps_result['output'].strip().split('\n'):
+                if ':' in line:
+                    cid, cname = line.split(':', 1)
+                    # Inspect container network settings
+                    inspect_result = run_wsl_command(f'docker inspect {cid} --format "{{{{.NetworkSettings.Networks}}}}"', timeout=5)
+                    if inspect_result['success'] and ip in inspect_result['output']:
+                        container_id = cid
+                        container_name = cname
+                        container_found = True
+                        break
+        
+        if container_found and container_id:
+            # Stop and remove the container
+            print(f"🛑 Blocking container: {container_name} ({container_id}) with IP {ip}")
+            stop_result = run_wsl_command(f'docker stop {container_id}', timeout=15)
+            rm_result = run_wsl_command(f'docker rm -f {container_id}', timeout=10)
+            
+            # Add to blocked devices list
+            add_blocked_device(ip, reason, container_id)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Device {ip} blocked - container {container_name} stopped and removed',
+                'ip': ip,
+                'container_id': container_id,
+                'container_name': container_name,
+                'stopped': stop_result['success'],
+                'removed': rm_result['success']
+            })
+        else:
+            # No container found, but still add to blocked list
+            print(f"⚠️ No container found with IP {ip}, adding to blocked list only")
+            add_blocked_device(ip, reason)
+            return jsonify({
+                'success': True,
+                'message': f'Device {ip} added to blocked list (no active container found with this IP)',
+                'ip': ip,
+                'warning': 'Container not found - may need manual cleanup'
+            })
+            
+    except Exception as e:
+        print(f"❌ Error blocking device {ip}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/devices/unblock', methods=['POST'])
+def unblock_device():
+    """Unblock a device by IP address - removes from blocked list and clears iptables"""
+    data = request.get_json()
+    ip = data.get('ip')
+    
+    if not ip:
+        return jsonify({'success': False, 'message': 'IP address required'}), 400
+    
+    try:
+        # Remove from blocked devices list
+        remove_blocked_device(ip)
+        
+        # Clear any iptables rules for this IP (if any were applied)
+        # This removes both DNAT and DROP rules
+        iptables_clear = run_wsl_command(f'sudo iptables -t nat -D PREROUTING -s {ip} -j DNAT --to-destination 192.168.7.3 2>/dev/null || true')
+        iptables_drop_clear = run_wsl_command(f'sudo iptables -D FORWARD -s {ip} -j DROP 2>/dev/null || true')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Device {ip} unblocked and can rejoin network',
+            'ip': ip
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/cleanup/all', methods=['POST'])
 def cleanup_all():

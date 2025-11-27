@@ -125,6 +125,7 @@ async function refreshDevices() {
         const container = document.getElementById('devices-container');
         const prod = data.production_devices || [];
         const beelzebub = data.beelzebub && data.beelzebub.devices ? data.beelzebub.devices : (data.honeypot_devices || []);
+        const blocked = data.blocked_devices || [];
 
         let html = `<div class="grid">`;
 
@@ -203,6 +204,60 @@ async function refreshDevices() {
                     </div>`;
             });
         }
+        html += `</div></div>`;
+
+        // Blocked Devices Column
+        html += `
+            <div class="card" style="border-color: rgba(239, 68, 68, 0.5);">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-ban text-danger"></i>
+                        Blocked Devices
+                    </div>
+                    <span class="status-badge status-off">${blocked.length} Blocked</span>
+                </div>
+                <div class="device-grid">`;
+
+        if (blocked.length === 0) {
+            html += `<div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No blocked devices</div>`;
+        } else {
+            blocked.forEach(d => {
+                const blockedDate = new Date(d.blocked_at).toLocaleString();
+                // Extract simple reason (remove hash details)
+                let simpleReason = d.reason || 'Security threat detected';
+                if (simpleReason.includes('SHA256:')) {
+                    simpleReason = simpleReason.split('(SHA256:')[0].trim();
+                }
+                if (simpleReason.includes('in file')) {
+                    const parts = simpleReason.split('in file');
+                    simpleReason = parts[0].trim();
+                    if (parts[1]) {
+                        const filename = parts[1].trim();
+                        simpleReason += ` (${filename})`;
+                    }
+                }
+                
+                html += `
+                    <div class="device-card" style="border-color: var(--danger); background: rgba(239, 68, 68, 0.1);">
+                        <div class="device-header">
+                            <div>
+                                <div class="device-name">🚫 ${escapeHtml(d.ip)}</div>
+                                <div class="device-type font-mono text-danger">BLOCKED</div>
+                            </div>
+                        </div>
+                        <div class="device-info" style="font-size: 0.85rem;">
+                            <div style="margin-bottom: 0.3rem;"><span class="text-muted">Reason:</span> <strong>${escapeHtml(simpleReason)}</strong></div>
+                            <div style="margin-bottom: 0.3rem;"><span class="text-muted">Blocked:</span> ${blockedDate}</div>
+                            <div><span class="text-danger">⛔ Network Access Denied</span></div>
+                        </div>
+                        <div class="device-actions">
+                            <button class="btn btn-success btn-small" onclick="unblockDevice('${escapeHtml(d.ip)}')">
+                                <i class="fas fa-unlock"></i> Unblock
+                            </button>
+                        </div>
+                    </div>`;
+            });
+        }
         html += `</div></div></div>`; // End grid
 
         container.innerHTML = html;
@@ -254,6 +309,25 @@ async function cleanupDevices() {
         refreshDevices();
     } catch (error) {
         showToast('Error during cleanup', 'error');
+    }
+}
+
+async function unblockDevice(ip) {
+    if (!confirm(`Unblock device ${ip}? This will allow it to rejoin the network.`)) return;
+    showToast(`Unblocking ${ip}...`, 'success');
+    try {
+        const response = await fetch('/api/devices/unblock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip: ip })
+        });
+        const data = await response.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        if (data.success) {
+            setTimeout(refreshDevices, 1000);
+        }
+    } catch (error) {
+        showToast('Error unblocking device', 'error');
     }
 }
 

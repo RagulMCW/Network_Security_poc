@@ -354,6 +354,28 @@ Analyze Docker network traffic to detect real security threats while ignoring le
             return self._read_zeek_logs("all")
         
         @self.mcp.tool
+        def block_device(ip: str, reason: str = "Malware detected") -> str:
+            """Block a device from the network by IP address - stops and removes the container.
+            
+            Args:
+                ip: IP address of the device to block (e.g., '192.168.6.200')
+                reason: Reason for blocking (e.g., 'Malware detected', 'Suspicious behavior')
+            
+            Returns:
+                JSON response with blocking status
+            """
+            import requests
+            try:
+                response = requests.post(
+                    'http://localhost:5100/api/devices/block',
+                    json={'ip': ip, 'reason': reason},
+                    timeout=10
+                )
+                return response.text
+            except Exception as e:
+                return f"Error blocking device: {str(e)}"
+        
+        @self.mcp.tool
         def move_device_to_honeypot(device_id: str, reason: str = "Suspicious activity detected") -> str:
             """Move a malicious or suspicious device from custom_net to honeypot_net (Beelzebub) for isolation.
             
