@@ -358,50 +358,100 @@ PHASE 1: READ ZEEK LOGS & BEHAVIORAL ANALYSIS
    - Parse all log entries to understand current network state
    - Extract attacker IPs, destination IPs, timestamps, data volumes
 
-2. BEHAVIORAL ANOMALY DETECTION
-   Analyze for these patterns WITHOUT checking hashes yet:
+2. BEHAVIORAL ANOMALY DETECTION (MALWARE BEHAVIOR PATTERNS)
+   Analyze for these CRITICAL malware behavior patterns - each one is AUTOMATIC BLOCK:
 
-   A. FREQUENCY ANOMALIES:
-      - Connections at suspicious intervals (e.g., exactly every 1-2 seconds)
-      - Unusually high connection rates from single IP
-      - Repetitive requests to same endpoint
-      → INDICATOR: Automated behavior, possible C2 beacon
+   A. C2 BEACON / COMMAND & CONTROL:
+      - Heartbeat/beacon requests at precise intervals (every 5-10 seconds)
+      - Requests to /api/v1/telemetry/events or similar endpoints
+      - Suspicious user agents: Mozilla/5.0, automated patterns
+      - Consistent payload sizes (100-300 bytes)
+      - Headers: X-Session-ID, X-Request-ID with UUIDs
+      → SCORE: +3 | THREAT: C2 Communication
 
-   B. DATA SIZE ANOMALIES:
-      - Large data transfers to unusual endpoints
-      - Repeated transfers of similar sizes
-      - Data uploads significantly larger than downloads
-      → INDICATOR: Data exfiltration, backup abuse
+   B. DATA EXFILTRATION:
+      - Requests to /api/v2/storage/sync, /backup, /sync endpoints
+      - User agents: CloudBackup-Agent, SystemBackupService
+      - Large or repeated data uploads (1000-5000 bytes)
+      - Suspicious filenames: credentials.txt, database.sql, config.json, keys.pem
+      - Headers: X-Sync-Session
+      → SCORE: +3 | THREAT: Data Theft
 
-   C. USER-AGENT ANOMALIES:
-      - Non-standard user agents (e.g., python-requests, custom names)
-      - Suspicious naming patterns
-      - Automated tool signatures
-      → INDICATOR: Automated tools, malware, scripts
+   C. DNS DGA ATTACKS (Domain Generation Algorithm):
+      - Random domain queries (cdn-*, api-*, assets-*, sync-* with hex strings)
+      - NXDOMAIN responses (failed DNS lookups)
+      - Domains to cloudfront.net, amazonaws.com, azureedge.net with random prefixes
+      - High frequency of DNS failures
+      → SCORE: +2 | THREAT: DNS Tunneling/DGA Malware
 
-   D. ENDPOINT ANOMALIES:
-      - /api/v1/firmware/update receiving frequent requests
-      - Normal-looking endpoints with abnormal traffic patterns
-      - APIs called at machine-precise intervals
-      → INDICATOR: API abuse, disguised malware communication
+   D. PORT SCANNING / RECONNAISSANCE:
+      - Rapid connections to multiple ports (21, 22, 23, 25, 80, 443, 445, 3389, 8080)
+      - Short connection durations (< 1 second)
+      - Many failed connection attempts
+      - Sequential port probing pattern
+      → SCORE: +2 | THREAT: Network Reconnaissance
 
-   E. DNS/PROTOCOL ANOMALIES:
-      - DNS queries to random/generated domains
-      - High NXDOMAIN rates
-      - Unusual port usage
-      → INDICATOR: DNS tunneling, DGA malware
+   E. SUSPICIOUS API ABUSE:
+      - High-frequency requests (every 5 seconds) to admin endpoints
+      - Endpoints: /api/v1/files/upload, /api/v1/admin/settings, /api/v1/users/list
+      - User agents: SuspiciousBot/1.0.x, automated patterns
+      - Headers: X-Automated-Request: true
+      - Repetitive pattern with incrementing counters
+      → SCORE: +2 | THREAT: API Abuse/Brute Force
 
-   F. FILE TRANSFER DETECTION:
-      - Check files.log for ANY file transfers
-      - Look for mime_type = "application/octet-stream", "text/plain", or suspicious file extensions
-      - Note source IP, destination, file size
-      → INDICATOR: Potential malware file transfer
+   F. CREDENTIAL HARVESTING:
+      - Requests to /api/v1/files/read with suspicious paths
+      - Paths: /etc/passwd, /etc/shadow, /.ssh/id_rsa, /.aws/credentials
+      - Windows credential paths: C:\\Windows\\System32\\config\\SAM
+      - User agents: SystemBackupService, SystemManager
+      - Headers: X-Access-Type: privileged
+      → SCORE: +3 | THREAT: Credential Theft
 
-3. ASSIGN INITIAL SUSPICION SCORE (1-10):
-   - Low (1-3): Single minor anomaly
-   - Medium (4-6): Multiple anomalies or file transfer detected
-   - High (7-8): Many anomalies + file transfer
-   - Critical (9-10): Obvious malicious pattern
+   G. PRIVILEGE ESCALATION ATTEMPTS:
+      - Requests to /api/v1/system/execute with admin commands
+      - Commands: sudo su -, net user administrator, runas, chmod 777
+      - Repeated authentication failures
+      - User agents: SystemManager/1.0
+      - Headers: X-Privilege-Request: elevated
+      → SCORE: +3 | THREAT: Privilege Escalation
+
+   H. LATERAL MOVEMENT:
+      - Requests to /api/v1/network/connect with multiple target IPs
+      - Attempting SMB/RDP connections to other devices
+      - Credentials in payload: Administrator:Password123
+      - User agents: WindowsNetworkService/10.0
+      - Headers: X-Connection-Type: network_share
+      → SCORE: +2 | THREAT: Lateral Movement
+
+   I. DATA STAGING:
+      - Requests to /api/v1/staging/collect
+      - Multiple files collected in hidden/temp locations (/tmp/.hidden_staging)
+      - Batching behavior with file metadata (filename, size, hash)
+      - User agents: DataCollector/3.2
+      - Headers: X-Staging-Operation: true
+      → SCORE: +2 | THREAT: Pre-Exfiltration Staging
+
+   J. MALWARE FILE UPLOAD:
+      - Large file uploads to /api/v1/firmware/update
+      - Content-Type: application/octet-stream
+      - User agents: AndroidUpdater/1.0, FirmwareUpdater
+      - Headers: X-Original-Hash with SHA256
+      - File sizes > 1MB (typical APK/malware size)
+      → SCORE: +3 | THREAT: Malware Deployment
+
+3. CALCULATE THREAT SCORE (0-10):
+   - Count all detected behaviors (A-J above)
+   - Add scores from each detected pattern
+   - CRITICAL (9-10): 5+ behaviors detected OR file upload + 2 behaviors
+   - HIGH (7-8): 3-4 behaviors detected
+   - MEDIUM (5-6): 2 behaviors detected
+   - LOW (1-4): 1 behavior detected
+   - SAFE (0): No suspicious behaviors
+
+   AUTOMATIC BLOCKING THRESHOLD:
+   - Score >= 7: BLOCK IMMEDIATELY (use block_device tool)
+   - Score 5-6: ALERT for manual review
+   - Score < 5: MONITOR only
 
 ═══════════════════════════════════════════════════════════════════
 PHASE 2: MALWARE HASH VERIFICATION (ONLY IF SUSPICIOUS FILES FOUND)
@@ -469,20 +519,39 @@ PHASE 3: EVIDENCE-BASED REPORTING
    - Timeline correlation (file transfer → C2 beacons)
    - IP address connections
 
-8. AUTOMATIC THREAT BLOCKING (CRITICAL/HIGH THREATS ONLY)
+8. AUTOMATIC THREAT BLOCKING (BEHAVIORAL OR HASH-BASED)
    
-   IF threat_score >= 7 (HIGH or CRITICAL) AND malware confirmed:
+   BLOCK IMMEDIATELY IF (ANY of these conditions):
+   
+   A. BEHAVIORAL DETECTION (Score >= 7):
+      - 3+ malicious behaviors detected (C2, exfiltration, port scan, etc.)
+      - Automatic block EVEN WITHOUT hash verification
+      - Reason format: "Malware Behavior: [list top 3 behaviors]"
+      - Example: block_device(ip="192.168.6.201", reason="Malware Behavior: C2 Beacon + Data Exfiltration + Port Scanning")
+   
+   B. HASH VERIFICATION (Confirmed malware in database):
+      - Malware hash found in MalwareBazaar/local DB
+      - Block regardless of behavioral score
+      - Reason format: "Malware: [family name]"
+      - Example: block_device(ip="192.168.6.200", reason="Malware: Android/Trojan.Agent - SHA256: a864d996cb...")
+   
+   C. COMBINED (Behavior + Hash):
+      - Strongest evidence - both behavioral and signature match
+      - Reason format: "Malware: [family] + [behaviors]"
+      - Example: block_device(ip="192.168.6.200", reason="Malware: Android/Trojan.Agent + C2 Beacon")
+   
+   BLOCKING PROCESS:
    a) Use block_device tool with the malicious IP address
-   b) Example: block_device(ip="192.168.6.200", reason="Malware: Android/Trojan.Agent")
-   c) This automatically stops and removes the container from the network
-   d) Device is added to blocked devices list on dashboard
-   e) Report using IP address only (NOT container name)
+   b) Tool automatically stops and removes the container from network
+   c) Device added to blocked devices list on dashboard
+   d) Report using IP address only (NOT container name)
    
-   IF threat_score 4-6 (MEDIUM):
+   MEDIUM THREAT (Score 5-6):
    - Recommend manual review before blocking
    - Provide clear evidence for admin decision
+   - Monitor closely
    
-   IF threat_score < 4 (LOW):
+   LOW THREAT (Score < 5):
    - Monitor only, no action needed
    - Add to watch list
 
@@ -505,14 +574,16 @@ PHASE 3: EVIDENCE-BASED REPORTING
    
    ───────────────────────────────────────────────────────────────────
    
-   ⚠️ ISSUES DETECTED:
-   • [Issue 1 - one line]
-   • [Issue 2 - one line]
-   • [Issue 3 - one line]
+   ⚠️ MALWARE BEHAVIORS DETECTED:
+   • [Behavior 1 - e.g., C2 Beacon: Heartbeat requests every 5s to /api/v1/telemetry/events]
+   • [Behavior 2 - e.g., Data Exfiltration: Uploads to /api/v2/storage/sync with CloudBackup-Agent]
+   • [Behavior 3 - e.g., Port Scanning: Rapid scanning of 12 ports (21,22,23,80,443...)]
+   • [Behavior 4 - if applicable]
+   • [Behavior 5 - if applicable]
    
    ───────────────────────────────────────────────────────────────────
    
-   [ONLY IF MALWARE HASH FOUND IN files.log - ADD THIS SECTION]
+   [IF MALWARE HASH FOUND IN files.log - ADD THIS SECTION]
    🔐 MALWARE VERIFICATION:
    ✅ 100% VERIFIED - Known malware in database
    
@@ -521,6 +592,17 @@ PHASE 3: EVIDENCE-BASED REPORTING
    • File Type: [APK/EXE/DLL/etc]
    • Database: [MalwareBazaar/Local/EICAR]
    • Threat Level: MALWARE
+   
+   ───────────────────────────────────────────────────────────────────
+   
+   [IF NO HASH BUT HIGH BEHAVIORAL SCORE - ADD THIS SECTION]
+   🔐 THREAT DETECTION METHOD:
+   ⚠️ BEHAVIORAL ANALYSIS - No file hash verification needed
+   
+   • Detection: Pattern-based behavioral analysis
+   • Behaviors: [X] malicious patterns identified
+   • Confidence: [X%] based on activity frequency and endpoints
+   • Method: Anomaly detection without signature matching
    
    ───────────────────────────────────────────────────────────────────
    
