@@ -422,86 +422,6 @@
                 </div>
             </div>
 
-            <!-- Attacker Details Section -->
-            <div class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-user-secret text-danger"></i> Detected Attackers
-                    </div>
-                    <button class="btn btn-primary btn-small" onclick="refreshAttackerDetails()">
-                        <i class="fas fa-sync"></i> Refresh
-                    </button>
-                </div>
-                
-                <!-- Summary Stats -->
-                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 1rem 0;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="attacker-total-attacks">0</div>
-                        <div class="stat-label">Total Attacks</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="attacker-unique-ips">0</div>
-                        <div class="stat-label">Unique IPs</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="attacker-credentials">0</div>
-                        <div class="stat-label">Credentials Tried</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="attacker-commands">0</div>
-                        <div class="stat-label">Commands Executed</div>
-                    </div>
-                </div>
-
-                <!-- Attacker List -->
-                <div id="attacker-list" class="logs-container" style="height: 300px;">
-                    <p class="text-muted" style="text-align: center; padding: 1rem;">
-                        No attackers detected yet. Start the honeypot and wait for connections.
-                    </p>
-                </div>
-            </div>
-
-            <!-- Credentials Captured -->
-            <div class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-key text-warning"></i> Captured Credentials
-                    </div>
-                </div>
-                <div id="credentials-list" class="logs-container" style="height: 200px;">
-                    <p class="text-muted" style="text-align: center; padding: 1rem;">
-                        No credentials captured yet.
-                    </p>
-                </div>
-            </div>
-
-            <!-- SSH Commands Executed -->
-            <div class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-terminal text-info"></i> SSH Commands Executed by Attackers
-                    </div>
-                </div>
-                <div id="commands-list" class="logs-container" style="height: 200px;">
-                    <p class="text-muted" style="text-align: center; padding: 1rem;">
-                        No commands executed yet.
-                    </p>
-                </div>
-            </div>
-
-            <!-- HTTP Requests -->
-            <div class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div class="card-title">
-                        <i class="fas fa-globe text-success"></i> HTTP Requests from Attackers
-                    </div>
-                </div>
-                <div id="http-requests-list" class="logs-container" style="height: 200px;">
-                    <p class="text-muted" style="text-align: center; padding: 1rem;">
-                        No HTTP requests captured yet.
-                    </p>
-                </div>
-            </div>
         </div>
 
         <!-- Attackers Page -->
@@ -892,13 +812,16 @@
             <div id="tab-beelzebub-logs" class="tab-content">
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">🍯 Honeypot Attack Logs</div>
+                        <div class="card-title">🍯 All Honeypot Logs (Unified View)</div>
                         <button class="btn btn-primary btn-small" onclick="viewBeelzebubLogsInTab()">
                             <i class="fas fa-sync"></i> Refresh
                         </button>
                     </div>
+                    <p class="text-muted" style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                        Showing all honeypot activity: SSH, HTTP, MySQL, PostgreSQL, FTP, Telnet
+                    </p>
                     <div class="logs-container" id="beelzebub-logs-tab">
-                        <div class="log-entry">Click "Refresh" to load honeypot attack logs...</div>
+                        <div class="log-entry">Click "Refresh" to load all honeypot logs...</div>
                     </div>
                 </div>
             </div>

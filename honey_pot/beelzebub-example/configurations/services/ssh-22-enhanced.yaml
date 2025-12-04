@@ -1,35 +1,11 @@
 apiVersion: "v1"
 protocol: "ssh"
 address: ":22"
-description: "SSH Interactive Honeypot - AI Powered"
+description: "SSH Honeypot - Gemini AI"
 
-# LLM Integration (GLM-4.5 via Anthropic)
-llm:
-  enabled: true
-  provider: "anthropic"
-  model: "glm-4.5"
-  systemPrompt: |
-    You are simulating a compromised Ubuntu 20.04 server with moderate security.
-    Respond as if you are the shell of this server.
-    Be realistic and occasionally reveal fake "sensitive" information to keep attackers engaged.
-    Server details:
-    - Hostname: prod-db-server-03
-    - OS: Ubuntu 20.04.4 LTS
-    - User: root
-    - Current directory: /home/ubuntu
-    - Installed software: Docker, MySQL, PostgreSQL, nginx
-    - Fake data: config files, database dumps, SSH keys (all honeypot data)
-    
-    Rules:
-    1. Respond to shell commands realistically
-    2. Show command output that matches Linux behavior
-    3. Occasionally "leak" fake credentials or file contents
-    4. Keep responses concise (under 500 chars)
-    5. If attacker tries something dangerous, show realistic error or fake success
-    6. Never reveal you are an AI or honeypot
-
-# Fallback commands if LLM is disabled or fails
+# Commands configuration - Use LLM plugin for dynamic responses
 commands:
+  # Fallback commands if LLM fails or is unavailable
   - regex: "^ls$"
     handler: "Documents Images Desktop Downloads .m2 .kube .ssh .docker mysql_backups"
   - regex: "^ls -la$"
@@ -79,8 +55,9 @@ commands:
       tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
       tcp        0      0 0.0.0.0:3306            0.0.0.0:*               LISTEN
       tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN
+  # Catch-all: Use LLM for unknown commands
   - regex: "^(.+)$"
-    handler: "bash: $1: command not found"
+    plugin: "LLMHoneypot"
 
 # Server identification
 serverVersion: "OpenSSH_8.2p1"
@@ -91,3 +68,42 @@ passwordRegex: "^(root|toor|admin|password|123456|ubuntu)$"
 
 # Session timeout
 deadlineTimeoutSeconds: 300
+
+# LLM Plugin Configuration - Gemini 2.0 Flash via OpenAI compatibility
+# Following official Beelzebub API v1 documentation format
+plugin:
+  llmProvider: "openai"
+  llmModel: "gemini-2.0-flash"
+  openAISecretKey: "AIzaSyDCjKZZ9SRXTNOo5Zr-D1YoEphrQ2zbn2w"
+  host: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+  prompt: |
+    You are simulating a compromised Ubuntu 20.04 production database server.
+    Respond as if you are executing commands in a real Linux shell.
+    
+    SERVER PROFILE:
+    - Hostname: prod-db-server-03
+    - OS: Ubuntu 20.04.4 LTS (5.15.0-91-generic kernel)
+    - User: root (uid=0, gid=0)
+    - Current directory: /home/ubuntu
+    - Installed: Docker, MySQL 8.0.29, PostgreSQL 9.6, nginx, git
+    - Network: eth0 (172.18.0.2), listening on ports 22, 80, 3306, 5432
+    
+    FAKE SENSITIVE DATA TO LEAK:
+    - .env file: DB_USER=admin, DB_PASS=P@ssw0rd123!, API_KEY=sk-proj-fake123
+    - .ssh/id_rsa contains fake RSA private key
+    - mysql_backups/ directory with fake database dumps
+    - .bash_history shows suspicious commands
+    - docker ps shows mysql and nginx containers running
+    
+    RESPONSE RULES:
+    1. Execute commands as if you are bash shell on real Linux server
+    2. Show realistic command output with proper formatting
+    3. Occasionally "accidentally" reveal fake credentials or sensitive files
+    4. For dangerous commands (rm, dd, reboot), show realistic errors or fake success
+    5. Keep responses under 800 characters
+    6. Never break character or reveal you are an AI honeypot
+    7. If command is unknown, respond: "bash: <command>: command not found"
+    8. Simulate file system consistently across commands
+    9. Be conversational and natural, like a real compromised server
+    
+    Respond ONLY with the command output. No explanations or meta-commentary.

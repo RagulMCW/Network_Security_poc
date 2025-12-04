@@ -2,3 +2,7 @@ core:
   logging:
     debug: false
     logsPath: /logs/beelzebub.log
+    eventsPath: /logs/attacks.jsonl
+    llmLogsPath: /logs/llm_responses.jsonl
+    format: json
+    logLLMInteractions: true

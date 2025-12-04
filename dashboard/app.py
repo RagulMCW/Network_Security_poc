@@ -605,7 +605,7 @@ def cleanup_all():
     
     # 6. Remove ALL custom networks
     print("🌐 Removing ALL custom networks...")
-    networks = ['custom_net', 'honeypot_net', 'attacker_net', 'monitor_net']
+    networks = ['custom_net', 'honey_pot_honeypot_net', 'attacker_net', 'monitor_net']
     for net in networks:
         rm_network = run_wsl_command(f'docker network rm {net} 2>/dev/null || true')
         if rm_network['output'].strip():
@@ -668,53 +668,50 @@ def stop_beelzebub():
 
 @app.route('/api/beelzebub/logs')
 def get_beelzebub_logs():
-    """Get Beelzebub logs"""
+    """Get ALL Beelzebub logs - unified view of all honeypot activity"""
     
-    # Beelzebub creates multiple log files
-    log_files = {
-        'attacks': os.path.join(HONEYPOT_DIR, 'logs', 'attacks.jsonl'),
-        'ssh': os.path.join(HONEYPOT_DIR, 'logs', 'ssh-22.log'),
-        'http': os.path.join(HONEYPOT_DIR, 'logs', 'http-8080.log'),
-        'mysql': os.path.join(HONEYPOT_DIR, 'logs', 'mysql-3306.log'),
-        'postgres': os.path.join(HONEYPOT_DIR, 'logs', 'postgresql-5432.log')
-    }
+    # Main log file
+    log_file = os.path.join(HONEYPOT_DIR, 'logs', 'beelzebub.log')
     
-    # Try to find any existing log file
-    existing_log = None
-    for log_type, log_path in log_files.items():
-        if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
-            existing_log = log_path
-            break
-    
-    if not existing_log:
+    if not os.path.exists(log_file):
         return jsonify({
             'success': True,
             'logs': [],
             'count': 0,
-            'message': 'No logs available yet. Start Beelzebub and wait for attacks.'
+            'message': 'No logs available yet. Start honeypot with START.bat'
         })
     
     logs = []
     try:
-        # Read JSONL or text log file
-        with open(existing_log, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
-            # Get last 100 lines
-            for line in lines[-100:]:
+            
+            # Get last 30 lines - Real-time view of recent interactions
+            for line in lines[-30:]:
                 line = line.strip()
-                if line:
-                    try:
-                        # Try to parse as JSON
-                        log_entry = json.loads(line)
-                        logs.append(log_entry)
-                    except json.JSONDecodeError:
-                        # Not JSON, treat as plain text log
-                        logs.append({
-                            'level': 'info',
-                            'msg': line,
-                            'time': datetime.now().isoformat(),
-                            'raw': True
-                        })
+                if not line:
+                    continue
+                    
+                try:
+                    log_entry = json.loads(line)
+                    
+                    # Extract key info for dashboard - ALL events
+                    event = log_entry.get('event', {})
+                    formatted_log = {
+                        'time': event.get('DateTime', log_entry.get('time')),
+                        'protocol': event.get('Protocol', 'Unknown'),
+                        'source_ip': event.get('SourceIp', 'Unknown'),
+                        'user': event.get('User', ''),
+                        'command': event.get('Command', ''),
+                        'output': event.get('CommandOutput', ''),
+                        'msg': event.get('Msg', log_entry.get('msg')),
+                        'level': log_entry.get('level', 'info'),
+                        'raw': log_entry
+                    }
+                    logs.append(formatted_log)
+                    
+                except json.JSONDecodeError:
+                    continue
         
         logs.reverse()  # Most recent first
         
@@ -722,11 +719,12 @@ def get_beelzebub_logs():
             'success': True,
             'logs': logs,
             'count': len(logs),
-            'log_file': os.path.basename(existing_log)
+            'log_file': 'beelzebub.log'
         })
+        
     except Exception as e:
         return jsonify({
-            'success': True,  # Still return success to avoid error in UI
+            'success': False,
             'error': str(e),
             'logs': [],
             'count': 0,
@@ -1036,12 +1034,12 @@ def reroute_to_beelzebub():
             'message': 'Invalid IP address format'
         })
     
-    honeypot_network = 'honeypot_net'
+    honeypot_network = 'honey_pot_honeypot_net'
     
     # Get Beelzebub honeypot IP dynamically
     get_beelzebub_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
     beelzebub_result = run_wsl_command(get_beelzebub_cmd)
-    honeypot_ip = beelzebub_result['output'].strip() if (beelzebub_result['success'] and beelzebub_result['output'].strip()) else '192.168.7.3'
+    honeypot_ip = beelzebub_result['output'].strip() if (beelzebub_result['success'] and beelzebub_result['output'].strip()) else '172.18.0.2'
     
     print(f"Rerouting {ip_address} to Beelzebub honeypot ({honeypot_ip})")
     
@@ -1256,7 +1254,7 @@ def reroute_to_beelzebub():
 def get_reroutes():
     """Get list of rerouted IPs to Beelzebub"""
     
-    honeypot_network = 'honeypot_net'
+    honeypot_network = 'honey_pot_honeypot_net'
     
     # Read reroutes log
     reroutes_log = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
@@ -1282,22 +1280,22 @@ def get_reroutes():
         
         for container_name in container_names:
             container_name = container_name.strip()
-            if not container_name or 'beelzebub' in container_name:
+            if not container_name or 'beelzebub' in container_name.lower() or 'pcap' in container_name.lower():
                 continue
             
-            # Filter for device/attacker containers only
-            if container_name.startswith('device_') or container_name.startswith('hping') or container_name.startswith('curl'):
-                # Get IP on honeypot_net
-                ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
-                ip_result = run_wsl_command(ip_cmd)
-                
-                if ip_result['success'] and ip_result['output'].strip():
-                    active_reroutes.append({
-                        'container': container_name,
-                        'ip': ip_result['output'].strip(),
-                        'network': honeypot_network,
-                        'method': 'network_move'
-                    })
+            # Show ALL isolated containers (except honeypot infrastructure)
+            # Get IP on honeypot_net
+            ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
+            ip_result = run_wsl_command(ip_cmd)
+            
+            if ip_result['success'] and ip_result['output'].strip():
+                active_reroutes.append({
+                    'container': container_name,
+                    'ip': ip_result['output'].strip(),
+                    'network': honeypot_network,
+                    'method': 'network_isolation',
+                    'status': 'isolated'
+                })
     
     # Also check for iptables-redirected devices (still on custom_net but traffic redirected)
     iptables_check_cmd = 'sudo iptables -t nat -L PREROUTING -n -v 2>/dev/null | grep "DNAT" | grep "192.168.7"'

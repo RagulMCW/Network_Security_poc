@@ -1,4 +1,5 @@
 services:
+  # Main Beelzebub Honeypot with GLM-4.5 LLM Support
   beelzebub:
     image: m4r10/beelzebub:latest
     container_name: beelzebub-honeypot
@@ -6,11 +7,10 @@ services:
       - .env
     environment:
       - GLM_KEY=${GLM_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-https://api.z.ai/api/anthropic}
     ports:
-      - "2223:22"    # SSH (changed from 2222 to avoid conflict with monitor)
-      - "8081:80"    # HTTP (changed from 8080 to avoid conflict)
+      - "2223:22"    # SSH with GLM-4.5 AI support
+      - "8081:80"    # HTTP
       - "8443:443"   # HTTPS
       - "2121:21"    # FTP
       - "2323:23"    # Telnet
@@ -23,34 +23,39 @@ services:
     networks:
       - honeypot_net
 
-  # Packet capture for honeypot network
-  honeypot-capture:
+  # Packet Capture - Captures traffic to/from honeypot
+  pcap-capture:
     image: nicolaka/netshoot:latest
-    container_name: beelzebub-pcap-capture
-    network_mode: "host"
+    container_name: honeypot-pcap
+    network_mode: "service:beelzebub"
     cap_add:
       - NET_ADMIN
       - NET_RAW
     volumes:
       - ./pcap_captures:/pcap_captures
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: >
-      bash -c "
-        echo 'Starting Beelzebub honeypot packet capture...';
-        sleep 5;
-        apk add --no-cache docker-cli;
-        PROD_BRIDGE_ID=$$(docker network inspect custom_net -f '{{.Id}}' 2>/dev/null | cut -c1-12);
-        BEELZEBUB_IP=$$(docker inspect beelzebub-honeypot --format '{{range \$$net, \$$conf := .NetworkSettings.Networks}}{{if contains \$$net \"honeypot\"}}{{printf \"%s\" \$$conf.IPAddress}}{{end}}{{end}}' 2>/dev/null || echo '172.18.0.2');
-        if [ -z \"\$$PROD_BRIDGE_ID\" ]; then
-          echo 'ERROR: custom_net network not found';
-          exit 1;
-        fi;
-        PROD_IFACE=\"br-\$$PROD_BRIDGE_ID\";
-        echo \"Capturing iptables-redirected traffic on \$$PROD_IFACE (Beelzebub IP: \$$BEELZEBUB_IP)\";
-        mkdir -p /pcap_captures;
-        tcpdump -i \$$PROD_IFACE -s 0 -G 10 -w /pcap_captures/honeypot_%Y%m%d_%H%M%S.pcap -Z root \"dst \$$BEELZEBUB_IP or src \$$BEELZEBUB_IP\" 2>&1 | tee /pcap_captures/capture.log;
-      "
+      - ./logs:/logs
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo '🔍 Starting packet capture for honeypot traffic...'
+        echo '📦 Capturing TCP traffic on honeypot ports'
+        echo '♻️ Auto-rotating every 10 seconds, keeping last 5 files'
+        mkdir -p /pcap_captures
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          echo "[INFO] Starting capture: honeypot_$${timestamp}.pcap"
+          timeout 10 tcpdump -i any -s 0 -w /pcap_captures/honeypot_$${timestamp}.pcap -Z root \
+            'tcp and (port 22 or port 80 or port 443 or port 3306 or port 5432 or port 21 or port 23)' \
+            2>&1 | tee -a /logs/pcap_capture.log
+          echo "[INFO] Rotation complete. Cleaning old files..."
+          cd /pcap_captures && ls -t honeypot_*.pcap 2>/dev/null | tail -n +6 | xargs -r rm -f
+          echo "[INFO] Kept last 5 PCAP files"
+          sleep 2
+        done
     restart: unless-stopped
+    depends_on:
+      - beelzebub
 
 networks:
   honeypot_net:

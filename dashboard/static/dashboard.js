@@ -436,7 +436,9 @@ async function viewBeelzebubLogs() {
             return;
         }
 
-        logsDisplay.innerHTML = data.logs.map(log => {
+        // Show last 30 interactions
+        const recentLogs = data.logs.slice(0, 30);
+        logsDisplay.innerHTML = recentLogs.map(log => {
             if (log.raw) {
                 return `<div class="log-entry"><span class="text-muted">${log.time || ''}</span> | ${escapeHtml(log.msg || '')}</div>`;
             }
@@ -629,20 +631,21 @@ async function refreshReroutes() {
         
         if (reroutes.length > 0) {
             listDiv.innerHTML = reroutes.map(reroute => `
-                <div class="card" style="margin-bottom: 1rem; border-left: 4px solid var(--danger); background: rgba(239, 68, 68, 0.05);">
+                <div class="card" style="margin-bottom: 1rem; border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.1); padding: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
+                        <div style="flex: 1;">
                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <strong class="text-danger">${reroute.container}</strong>
-                                <span class="status-badge status-off">ISOLATED</span>
+                                <i class="fas fa-ban" style="color: #ef4444;"></i>
+                                <strong style="color: #ef4444; font-size: 1.1em;">${reroute.container}</strong>
+                                <span class="status-badge" style="background: #ef4444; color: white;">🔒 ISOLATED</span>
                             </div>
                             <div class="text-muted" style="font-size: 0.9em;">
-                                <div>Original IP: ${reroute.ip}</div>
-                                <div>Method: ${reroute.method}</div>
+                                <div>📍 Honeypot IP: <strong>${reroute.ip}</strong></div>
+                                <div>🔧 Status: <strong style="color: #ef4444;">Traffic redirected to honeypot_net</strong></div>
                             </div>
                         </div>
-                        <button class="btn btn-success btn-small" onclick="removeReroute('${reroute.container}')">
-                            Restore
+                        <button class="btn btn-success btn-small" onclick="removeReroute('${reroute.container}')" style="margin-left: 1rem;">
+                            <i class="fas fa-undo"></i> Restore
                         </button>
                     </div>
                 </div>
@@ -957,6 +960,9 @@ async function refreshMonitorLogsInTab() {
 }
 
 // Page navigation
+// Auto-refresh interval for Beelzebub page
+let beelzebubRefreshInterval = null;
+
 function showPage(pageName, event) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -964,11 +970,24 @@ function showPage(pageName, event) {
     document.getElementById(`page-${pageName}`).classList.add('active');
     if (event && event.target) event.target.classList.add('active');
     
+    // Clear any existing Beelzebub auto-refresh
+    if (beelzebubRefreshInterval) {
+        clearInterval(beelzebubRefreshInterval);
+        beelzebubRefreshInterval = null;
+    }
+    
     currentPage = pageName;
     if (pageName === 'network-map') refreshNetworkMap();
     else if (pageName === 'monitor') refreshMonitorStatus();
     else if (pageName === 'devices') refreshDevices();
-    else if (pageName === 'beelzebub') { refreshBeelzebubStats(); refreshReroutes(); }
+    else if (pageName === 'beelzebub') { 
+        refreshBeelzebubStats(); 
+        refreshReroutes(); 
+        // Auto-refresh Beelzebub logs every 1 second
+        beelzebubRefreshInterval = setInterval(() => {
+            refreshBeelzebubStats();
+        }, 1000);
+    }
     else if (pageName === 'logs') refreshDeviceData();
 }
 
@@ -983,23 +1002,37 @@ async function viewBeelzebubLogsInTab() {
             return;
         }
         if (data.logs.length === 0) {
-            logsDisplay.innerHTML = `<div class="log-entry text-muted">No attacks logged yet.</div>`;
+            logsDisplay.innerHTML = `<div class="log-entry text-muted">No attacks logged yet. Start honeypot and wait for connections.</div>`;
             return;
         }
 
         logsDisplay.innerHTML = data.logs.map(log => {
-            if (log.raw) return `<div class="log-entry"><span class="text-muted">${log.time || ''}</span> | ${escapeHtml(log.msg || '')}</div>`;
-            
             const level = (log.level || 'info').toUpperCase();
             let levelClass = 'text-info';
             if (level === 'ERROR') levelClass = 'text-danger';
             if (level === 'WARN') levelClass = 'text-warning';
             
+            // Get protocol badge color
+            const protocol = (log.protocol || 'Unknown').toUpperCase();
+            let protocolBadge = '';
+            if (protocol.includes('SSH')) protocolBadge = '<span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">SSH</span>';
+            else if (protocol.includes('HTTP')) protocolBadge = '<span style="background: #10b981; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">HTTP</span>';
+            else if (protocol.includes('MYSQL') || log.msg.includes('3306')) protocolBadge = '<span style="background: #f59e0b; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">MYSQL</span>';
+            else if (protocol.includes('POSTGRES') || log.msg.includes('5432')) protocolBadge = '<span style="background: #8b5cf6; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">POSTGRES</span>';
+            else if (protocol.includes('FTP')) protocolBadge = '<span style="background: #ec4899; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">FTP</span>';
+            else if (protocol.includes('TELNET')) protocolBadge = '<span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">TELNET</span>';
+            else protocolBadge = '<span style="background: #6b7280; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem;">OTHER</span>';
+            
+            let details = '';
+            if (log.source_ip && log.source_ip !== 'Unknown') details += ` | IP: <strong>${escapeHtml(log.source_ip)}</strong>`;
+            if (log.user) details += ` | User: <strong>${escapeHtml(log.user)}</strong>`;
+            if (log.command) details += ` | Cmd: <code>${escapeHtml(log.command).substring(0, 50)}${log.command.length > 50 ? '...' : ''}</code>`;
+            
             return `
                 <div class="log-entry">
-                    <span class="text-muted">${log.time || log.timestamp || 'N/A'}</span> | 
-                    <span class="${levelClass} font-bold">[${level}]</span> |
-                    <span>${escapeHtml(log.msg || log.message || '')}</span>
+                    <span class="text-muted">${log.time || 'N/A'}</span> | 
+                    ${protocolBadge} | 
+                    <span>${escapeHtml(log.msg || 'Event')}${details}</span>
                 </div>
             `;
         }).join('');
