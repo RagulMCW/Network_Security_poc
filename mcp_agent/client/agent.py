@@ -11,6 +11,7 @@ import subprocess
 import sys
 import os
 import json
+import time
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from dataclasses import dataclass
@@ -62,11 +63,11 @@ class ContextWindowManager:
         """Get formatted status."""
         used_pct = self.get_usage_percent()
         if used_pct < 50:
-            return f"✓ Context: {used_pct:.1f}% used"
+            return f"[OK] Context: {used_pct:.1f}% used"
         elif used_pct < 80:
-            return f"⚠ Context: {used_pct:.1f}% used"
+            return f"[WARN] Context: {used_pct:.1f}% used"
         else:
-            return f"⚡ Context: {used_pct:.1f}% used (near limit)"
+            return f"[CRITICAL] Context: {used_pct:.1f}% used (near limit)"
 
 
 @dataclass
@@ -78,8 +79,8 @@ class TodoItem:
     status: str = "not-started"  # not-started, in-progress, completed
     
     def __str__(self):
-        status_icon = {"not-started": "⏸", "in-progress": "▶", "completed": "✅"}
-        return f"{status_icon.get(self.status, '•')} [{self.id}] {self.title}"
+        status_icon = {"not-started": "[ ]", "in-progress": "[>]", "completed": "[X]"}
+        return f"{status_icon.get(self.status, '[ ]')} [{self.id}] {self.title}"
 
 
 class NetworkSecurityAgent:
@@ -139,7 +140,7 @@ class MCPAgent:
 
         # Only print minimal info
         if not self.quiet:
-            print("✅ Agent Ready")
+            print("[OK] Agent Ready")
             print()
 
     def _check_docker_in_wsl(self) -> bool:
@@ -172,13 +173,13 @@ class MCPAgent:
                 self.tools = []
             
             if not self.quiet and self.tools:
-                print(f"✓ Loaded {len(self.tools)} tools\n")
+                print(f"[OK] Loaded {len(self.tools)} tools\n")
                 
         except Exception as e:
-            print(f"❌ ERROR: Could not load tools - {e}")
-            print(f"❌ ERROR type: {type(e)}")
+            print(f"[ERROR] Could not load tools - {e}")
+            print(f"[ERROR] type: {type(e)}")
             import traceback
-            print(f"❌ Traceback:\n{traceback.format_exc()}")
+            print(f"[ERROR] Traceback:\n{traceback.format_exc()}")
             # Clean up if initialization failed
             try:
                 await self.mcp_client.__aexit__(None, None, None)
@@ -191,7 +192,7 @@ class MCPAgent:
             await self.mcp_client.__aexit__(None, None, None)
         except Exception as e:
             if not self.quiet:
-                print(f"⚠ Warning during cleanup: {e}")
+                print(f"[WARN] Warning during cleanup: {e}")
 
     def _add_todo(self, title: str, description: str) -> TodoItem:
         """Add a new TODO item."""
@@ -266,9 +267,9 @@ class MCPAgent:
         except Exception as e:
             error_msg = f"Error calling tool: {str(e)}"
             if not self.quiet:
-                print(f"❌ DEBUG: {error_msg}")
+                print(f"[DEBUG ERROR] {error_msg}")
                 import traceback
-                print(f"❌ DEBUG: Traceback:\n{traceback.format_exc()}")
+                print(f"[DEBUG ERROR] Traceback:\n{traceback.format_exc()}")
             return error_msg
 
     def _is_docker_query(self, user_input: str) -> bool:
@@ -301,139 +302,40 @@ class MCPAgent:
                                if hasattr(tool, 'description') else f"- {tool.name}" 
                                for tool in self.tools])
         
-        prompt = f"""You are a Network Security AI that detects threats and reroutes malicious traffic to honeypot.
+        prompt = f"""You are a Network Security AI that detects MALICIOUS ATTACKERS only.
 
-        WORKFLOW: Analyze behavior FIRST → Check malware hashes ONLY if suspicious files found → Reroute to honeypot.
+CRITICAL: DO NOT flag legitimate infrastructure!
+- 192.168.6.131 = network-monitor (LEGITIMATE server - NEVER block)
+- 192.168.6.1 = gateway (LEGITIMATE - NEVER block)
+- vdevice_001, vdevice_002 = normal IoT devices (LEGITIMATE - NEVER block)
 
-        Available tools: {tools_desc}
+ONLY block devices showing these ATTACK PATTERNS:
+1. Suspicious User-Agents: "SuspiciousBot", "MalwareClient", "SystemBackupService", "WindowsNetworkService"
+2. Attack URLs: /api/v1/system/execute, /api/v1/admin/settings, /api/v1/users/list, /api/v1/files/read
+3. Credential theft: requests for /etc/passwd, .ssh/id_rsa, /etc/shadow
+4. C2 beaconing: rapid repeated requests to /telemetry, /beacon, /c2
+5. Data exfiltration: /api/v1/staging, /api/v2/storage/sync, /backup/upload
 
-        ═══════════════════════════════════════════════════════════════════
-        PHASE 1: ANALYZE LOGS & DETECT THREATS
-        ═══════════════════════════════════════════════════════════════════
+LEGITIMATE TRAFFIC (DO NOT BLOCK):
+- Normal device data: POST /api/device/data (this is normal IoT telemetry)
+- Health checks: GET /health, GET /status
+- Normal user agents: "IoTDevice", "DeviceClient", "python-requests"
+- Traffic TO 192.168.6.131 is normal (devices reporting to monitor)
 
-        1. READ LOGS (use read_zeek_logs tool)
-        - Get latest conn.log, http.log, dns.log, files.log
-        - Extract IPs, timestamps, data volumes
+WORKFLOW:
+1. Call read_zeek_logs
+2. Look for ATTACK patterns (suspicious user-agents, attack URLs)
+3. Find the SOURCE IP of attacks (the client making malicious requests)
+4. ONLY call move_device_to_honeypot if you find real attack patterns
+5. Report findings
 
-        2. DETECT MALWARE BEHAVIORS (each pattern = auto-reroute if 3+ found):
+REMEMBER:
+- The ATTACKER is the CLIENT making malicious requests
+- The SERVER (192.168.6.131) receiving requests is NOT the attacker
+- Look for suspicious User-Agent headers and malicious URL patterns
+- Normal /api/device/data traffic is LEGITIMATE
 
-        A. C2 Beacon (+3 points): Regular requests every 5-10s to /telemetry or /events
-        B. Data Theft (+3 points): Uploads to /sync, /backup with sensitive files
-        C. DNS Attack (+2 points): Random domain queries with many NXDOMAIN failures
-        D. Port Scan (+2 points): Rapid connections to multiple ports (21,22,23,80,443...)
-        E. API Abuse (+2 points): High-frequency requests to admin endpoints
-        F. Credential Theft (+3 points): Requests to /etc/passwd, /.ssh/id_rsa, SAM files
-        G. Privilege Escalation (+3 points): Attempts to run sudo, runas, chmod 777
-        H. Lateral Movement (+2 points): Connections to multiple internal IPs with credentials
-        I. Data Staging (+2 points): Collecting files to /tmp/.hidden locations
-        J. Malware Upload (+3 points): Large uploads to /firmware/update endpoints
-
-        3. CALCULATE THREAT SCORE (0-10):
-        - Add points from detected behaviors
-        - CRITICAL (9-10): 5+ behaviors OR file upload + 2 behaviors → REROUTE TO HONEYPOT
-        - HIGH (7-8): 3-4 behaviors → REROUTE TO HONEYPOT
-        - MEDIUM (5-6): 2 behaviors → Alert for review
-        - LOW (1-4): 1 behavior → Monitor only
-        - SAFE (0): No suspicious activity
-
-        ═══════════════════════════════════════════════════════════════════
-        PHASE 2: VERIFY MALWARE (Only if files found OR score >= 6)
-        ═══════════════════════════════════════════════════════════════════
-
-        4. CHECK files.log for SHA256 hashes from suspicious IPs
-
-        5. VERIFY HASHES using check_malware_hash tool
-        - Returns: threat_level, signature, database source
-        - If MALWARE found → note family name and details
-
-        6. CORRELATE results:
-        - Hash = malware + Behavior = suspicious → CONFIRMED THREAT
-        - Hash = clean + Behavior = highly suspicious → POTENTIAL ZERO-DAY
-        - Hash = malware + Behavior = normal → FALSE POSITIVE
-
-        ═══════════════════════════════════════════════════════════════════
-        PHASE 3: REROUTE TO HONEYPOT & REPORT
-        ═══════════════════════════════════════════════════════════════════
-
-        7. AUTO-REROUTE TO HONEYPOT IF (any condition):
-        - Score >= 7 (3+ malicious behaviors)
-        - Malware hash verified in database
-        - Use move_to_honeypot(ip, reason)
-        - Tool will reroute ALL traffic from malicious IP to isolated honeypot network
-        - Device continues operating but in controlled environment for analysis
-
-        8. REPORT FORMAT:
-
-        ═══════════════════════════════════════════════════════════════════
-        🚨 THREAT ALERT | [🔴 CRITICAL / 🟠 HIGH / 🟡 MEDIUM / 🟢 LOW]
-        ═══════════════════════════════════════════════════════════════════
-        
-        📝 WHAT HAPPENED:
-        [Brief 1-2 sentence summary]
-        
-        ───────────────────────────────────────────────────────────────────
-        
-        👤 DEVICES:
-        • Attacker: [IP]
-        • Target: [IP] ([Service])
-        • Status: [Active/Rerouted to Honeypot/Monitoring]
-        
-        ───────────────────────────────────────────────────────────────────
-        
-        ⚠️ BEHAVIORS DETECTED:
-        • [Behavior 1 with details]
-        • [Behavior 2 with details]
-        • [Behavior 3+ if applicable]
-        
-        ───────────────────────────────────────────────────────────────────
-        
-        [IF HASH VERIFIED]
-        🔐 MALWARE VERIFIED:
-        • Hash: [SHA256 truncated]
-        • Family: [Name]
-        • Type: [APK/EXE/etc]
-        • Database: [Source]
-        
-        ───────────────────────────────────────────────────────────────────
-        
-        🛡️ ACTION TAKEN:
-        [✅ Rerouted to Honeypot / ⚠️ Review needed / ℹ️ Monitoring]
-        
-        [IF REROUTED]
-        • Traffic isolated to honeypot network
-        • Device under controlled observation
-        • No access to production systems
-        
-        ───────────────────────────────────────────────────────────────────
-        
-        💡 RECOMMENDATIONS:
-        1. [Action 1]
-        2. [Action 2]
-        3. [Action 3]
-        
-        ═══════════════════════════════════════════════════════════════════
-
-        [IF NO THREATS]
-        ✅ ALL CLEAR - NO THREATS DETECTED
-        All devices operating normally.
-        ═══════════════════════════════════════════════════════════════════
-
-        ═══════════════════════════════════════════════════════════════════
-        KEY RULES
-        ═══════════════════════════════════════════════════════════════════
-
-        ✓ DO: Read logs first → Analyze behavior → Check hashes only if needed → Reroute malicious traffic
-        ✗ DON'T: Check hashes automatically, skip behavior analysis, reroute without evidence
-
-        REROUTING PROCESS:
-        - Use move_to_honeypot(ip, reason) for threats with score >= 7 or verified malware
-        - Tool automatically reroutes ALL traffic from the IP to honeypot network
-        - Device remains active in isolated environment for further analysis
-        - Report using IP address only (NOT container name)
-
-        SEQUENCE: read_zeek_logs → Analyze internally → check_malware_hash (if needed) → move_to_honeypot (if threat) → Report
-
-        Context: {self.context_manager.get_status_display()}"""
+Context: {self.context_manager.get_status_display()}"""
 
         return prompt
 
@@ -469,14 +371,20 @@ class MCPAgent:
         
         try:
             # Multi-turn conversation loop
+            query_start_time = time.time()
             iteration = 0
-            max_iterations = 100
+            max_iterations = 50# FAST MODE: Maximum 5 iterations (not 100!)
             final_response_text = ""
             
             while iteration < max_iterations:
                 iteration += 1
+                iteration_start = time.time()
+                
+                if not self.quiet:
+                    print(f"\n🔄 Iteration {iteration} [STARTED]", flush=True)
                 
                 # Call glm-4.5
+                llm_start = time.time()
                 response = self.anthropic_client.messages.create(
                     model="glm-4.5",  # Fixed: using correct glm-4.5 model
                     max_tokens=4096,
@@ -484,6 +392,10 @@ class MCPAgent:
                     messages=messages,
                     tools=tool_definitions if tool_definitions else None
                 )
+                
+                llm_elapsed = time.time() - llm_start
+                if not self.quiet:
+                    print(f"🤖 LLM Response [COMPLETED in {llm_elapsed:.2f}s]", flush=True)
                 
                 # Update token usage silently
                 if hasattr(response, 'usage'):
@@ -545,19 +457,47 @@ class MCPAgent:
                         if todo_id <= len(self.todos):
                             self._update_todo_status(todo_id, "in-progress")
                         
-                        # Simple tool progress output (just the name)
-                        if not self.quiet:
-                            print(f"🔧 {tool_call.name}")
+                        # START TIMING
+                        tool_start_time = time.time()
                         
-                        # Call tool callback if provided (for web UI)
-                        if self.tool_callback:
-                            self.tool_callback(tool_call.name, 'running')
+                        # FAST MODE: Block forbidden tools that cause slowness
+                        forbidden_tools = ['docker_command', 'wsl_command', 'run_powershell', 
+                                          'run_command', 'block_device', 'wsl_bash_script']
                         
-                        # Call the tool
-                        tool_result_text = await self.call_mcp_tool(
-                            tool_call.name,
-                            tool_call.input if hasattr(tool_call, 'input') else {}
-                        )
+                        # Get tool parameters for display
+                        tool_params = tool_call.input if hasattr(tool_call, 'input') else {}
+                        params_str = ', '.join([f"{k}={repr(v)[:50]}" for k, v in tool_params.items()]) if tool_params else ""
+                        
+                        if tool_call.name in forbidden_tools:
+                            if not self.quiet:
+                                print(f"[BLOCKED] {tool_call.name}({params_str}) - use move_device_to_honeypot instead", flush=True)
+                            tool_result_text = f"Error: {tool_call.name} is not allowed. Use move_device_to_honeypot for rerouting."
+                        else:
+                            # Tool progress output with timing AND PARAMETERS
+                            if not self.quiet:
+                                print(f"[TOOL] {tool_call.name}({params_str}) [STARTED]", flush=True)
+                            
+                            # Call tool callback if provided (for web UI)
+                            if self.tool_callback:
+                                self.tool_callback(tool_call.name, 'running')
+                            
+                            # Call the tool
+                            tool_result_text = await self.call_mcp_tool(
+                                tool_call.name,
+                                tool_call.input if hasattr(tool_call, 'input') else {}
+                            )
+                        
+                        # CALCULATE ELAPSED TIME
+                        tool_elapsed = time.time() - tool_start_time
+                        
+                        # Show completion with timing AND OUTPUT (only if not blocked)
+                        if not self.quiet and tool_call.name not in forbidden_tools:
+                            print(f"[OK] {tool_call.name} [COMPLETED in {tool_elapsed:.2f}s]", flush=True)
+                            # Show truncated output (first 500 chars)
+                            # output_preview = tool_result_text[:500] if len(tool_result_text) > 500 else tool_result_text
+                            # if len(tool_result_text) > 500:
+                            #     output_preview += f"\n... ({len(tool_result_text) - 500} more chars)"
+                            # print(f"[OUTPUT]\n{output_preview}\n", flush=True)
                         
                         # Build tool result for Anthropic API
                         tool_results.append({
@@ -568,7 +508,7 @@ class MCPAgent:
                         
                         # Mark as completed
                         if self.tool_callback:
-                            self.tool_callback(tool_call.name, 'completed')
+                            self.tool_callback(tool_call.name, 'completed', tool_elapsed)
                         
                         if todo_id <= len(self.todos):
                             self._update_todo_status(todo_id, "completed")
@@ -580,14 +520,27 @@ class MCPAgent:
                     }
                     messages.append(user_message)
                     
+                    # Show iteration completion
+                    iteration_elapsed = time.time() - iteration_start
+                    if not self.quiet:
+                        print(f"[OK] Iteration {iteration} [COMPLETED in {iteration_elapsed:.2f}s]", flush=True)
+                    
                     # Continue loop to get glm-4.5's response to tool results
                     continue
                 
                 # If we get here without tool calls, break
+                iteration_elapsed = time.time() - iteration_start
+                if not self.quiet:
+                    print(f"[OK] Iteration {iteration} [COMPLETED in {iteration_elapsed:.2f}s - NO TOOLS]", flush=True)
                 break
             
             if iteration >= max_iterations:
-                final_response_text += f"\n\n⚠️ Reached maximum iterations ({max_iterations})"
+                final_response_text += f"\n\n[WARNING] Reached maximum iterations ({max_iterations})"
+            
+            # Calculate total query time
+            total_elapsed = time.time() - query_start_time
+            if not self.quiet:
+                print(f"\n[TIME] TOTAL QUERY TIME: {total_elapsed:.2f}s ({iteration} iterations)", flush=True)
             
             # Add final assistant response to conversation history
             self.conversation_history.append({
@@ -599,9 +552,9 @@ class MCPAgent:
             
         except Exception as e:
             error_msg = f"Error processing query: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"[ERROR] {error_msg}")
             import traceback
-            print(f"❌ Traceback:\n{traceback.format_exc()}")
+            print(f"[ERROR] Traceback:\n{traceback.format_exc()}")
             return error_msg
 
     async def _handle_slash_command(self, command: str) -> str:
@@ -697,13 +650,13 @@ Regular queries are processed by glm-4.5 with tool access.
                     print(f"\nAgent: {response}")
                     
                 except KeyboardInterrupt:
-                    print("\n\n👋 Goodbye!")
+                    print("\n\nGoodbye!")
                     break
                 except EOFError:
-                    print("\n\n👋 Goodbye!")
+                    print("\n\nGoodbye!")
                     break
                 except Exception as e:
-                    print(f"\n❌ Error: {e}")
+                    print(f"\n[ERROR] {e}")
         finally:
             # Cleanup MCP client connection
             loop.run_until_complete(self.cleanup())

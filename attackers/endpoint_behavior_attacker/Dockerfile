@@ -11,10 +11,12 @@ RUN apt-get update && apt-get install -y \
     nmap \
     dnsutils \
     uuid-runtime \
+    sshpass \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
-RUN pip3 install requests
+RUN pip3 install requests paramiko
 
 WORKDIR /app
 

@@ -25,6 +25,10 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo Ensuring Docker inter-container communication rules...
+call "%~dp0..\scripts\ensure_docker_icc.bat"
+
+echo.
 echo ================================================================
 echo ✓ NETWORK MONITOR STARTED
 echo ================================================================

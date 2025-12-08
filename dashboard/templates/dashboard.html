@@ -387,6 +387,21 @@
                 </div>
             </div>
 
+            <!-- LLM AI Responses -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-brain text-primary"></i> LLM AI Responses
+                    </div>
+                    <button class="btn btn-warning btn-small" onclick="refreshLLMLogs()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+                <div class="logs-container" id="llm-logs" style="max-height: 500px; overflow-y: auto;">
+                    <div class="log-entry">Loading LLM responses...</div>
+                </div>
+            </div>
+
             <!-- IP Reroute Feature -->
             <div class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
@@ -407,6 +422,26 @@
                     </div>
                     <div class="text-muted" style="font-size: 0.85rem;">
                         <strong>💡 Tip:</strong> Find IP addresses in Network Map or Devices page.
+                    </div>
+                </div>
+                
+                <!-- Clear All DNAT Rules Button -->
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--border-color);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                        <div>
+                            <h4 style="margin: 0; color: var(--danger-color);">
+                                <i class="fas fa-broom"></i> Clear All DNAT Rules
+                            </h4>
+                            <p class="text-muted" style="font-size: 0.9rem; margin: 0.5rem 0 0 0;">
+                                Remove ALL iptables DNAT rerouting rules for ALL devices. This will restore normal traffic for all rerouted devices.
+                            </p>
+                        </div>
+                        <button class="btn btn-danger" onclick="clearAllDNATRules()" style="margin-left: 1rem;">
+                            <i class="fas fa-eraser"></i> Clear All Rules
+                        </button>
+                    </div>
+                    <div class="text-muted" style="font-size: 0.85rem; color: var(--warning-color);">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> This will flush all DNAT/FORWARD/POSTROUTING iptables chains and remove traffic rerouting for ALL devices.
                     </div>
                 </div>
 

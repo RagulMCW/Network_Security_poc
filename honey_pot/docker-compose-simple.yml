@@ -1,15 +1,29 @@
 services:
-  # Main Beelzebub Honeypot with GLM-4.5 LLM Support
+  # Ollama Proxy - bridges host network to honeypot network
+  # Uses host network to access Windows Ollama, exposes port 11435 for honeypot
+  ollama-proxy:
+    image: alpine/socat
+    container_name: ollama-proxy
+    network_mode: host
+    command: TCP-LISTEN:11435,fork,reuseaddr TCP:192.168.13.162:11434
+    restart: unless-stopped
+
+  # Main Beelzebub Honeypot with built-in traffic capture
   beelzebub:
     image: m4r10/beelzebub:latest
     container_name: beelzebub-honeypot
     env_file:
       - .env
     environment:
-      - GLM_KEY=${GLM_KEY}
-      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-https://api.z.ai/api/anthropic}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-ollama}
+      # Use Docker gateway to reach the host-network proxy
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://172.17.0.1:11435/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-llama3.1:8b}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     ports:
-      - "2223:22"    # SSH with GLM-4.5 AI support
+      - "2223:22"    # SSH with Ollama LLM support
       - "8081:80"    # HTTP
       - "8443:443"   # HTTPS
       - "2121:21"    # FTP
@@ -19,43 +33,24 @@ services:
     volumes:
       - ./beelzebub-example/configurations:/configurations
       - ./logs:/logs
+      - ./pcap_captures:/pcap_captures
+      - ./capture_traffic.sh:/capture_traffic.sh:ro
     restart: unless-stopped
     networks:
       - honeypot_net
-
-  # Packet Capture - Captures traffic to/from honeypot
-  pcap-capture:
-    image: nicolaka/netshoot:latest
-    container_name: honeypot-pcap
-    network_mode: "service:beelzebub"
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      - ./pcap_captures:/pcap_captures
-      - ./logs:/logs
+    depends_on:
+      - ollama-proxy
     command:
       - /bin/bash
       - -c
       - |
-        echo '🔍 Starting packet capture for honeypot traffic...'
-        echo '📦 Capturing TCP traffic on honeypot ports'
-        echo '♻️ Auto-rotating every 10 seconds, keeping last 5 files'
+        # Start tcpdump in background to capture ALL traffic on eth0 (172.18.x.x network)
+        echo "🔍 Starting packet capture on Beelzebub network interface..."
         mkdir -p /pcap_captures
-        while true; do
-          timestamp=$$(date +%Y%m%d_%H%M%S)
-          echo "[INFO] Starting capture: honeypot_$${timestamp}.pcap"
-          timeout 10 tcpdump -i any -s 0 -w /pcap_captures/honeypot_$${timestamp}.pcap -Z root \
-            'tcp and (port 22 or port 80 or port 443 or port 3306 or port 5432 or port 21 or port 23)' \
-            2>&1 | tee -a /logs/pcap_capture.log
-          echo "[INFO] Rotation complete. Cleaning old files..."
-          cd /pcap_captures && ls -t honeypot_*.pcap 2>/dev/null | tail -n +6 | xargs -r rm -f
-          echo "[INFO] Kept last 5 PCAP files"
-          sleep 2
-        done
-    restart: unless-stopped
-    depends_on:
-      - beelzebub
+        nohup bash /capture_traffic.sh > /logs/pcap_capture.log 2>&1 &
+        
+        # Start Beelzebub honeypot
+        exec /app/beelzebub
 
 networks:
   honeypot_net:

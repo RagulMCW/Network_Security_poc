@@ -1,7 +1,7 @@
 apiVersion: "v1"
 protocol: "ssh"
 address: ":22"
-description: "SSH Honeypot - Gemini AI"
+description: "SSH Honeypot - Ollama LLM"
 
 # Commands configuration - Use LLM plugin for dynamic responses
 commands:
@@ -69,13 +69,14 @@ passwordRegex: "^(root|toor|admin|password|123456|ubuntu)$"
 # Session timeout
 deadlineTimeoutSeconds: 300
 
-# LLM Plugin Configuration - Gemini 2.0 Flash via OpenAI compatibility
+# LLM Plugin Configuration - Ollama (via proxy on Docker gateway)
 # Following official Beelzebub API v1 documentation format
 plugin:
   llmProvider: "openai"
-  llmModel: "gemini-2.0-flash"
-  openAISecretKey: "AIzaSyDCjKZZ9SRXTNOo5Zr-D1YoEphrQ2zbn2w"
-  host: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+  llmModel: "llama3.1:8b"
+  openAISecretKey: "ollama"
+  host: "http://172.17.0.1:11435/v1/chat/completions"
+  timeout: 30
   prompt: |
     You are simulating a compromised Ubuntu 20.04 production database server.
     Respond as if you are executing commands in a real Linux shell.

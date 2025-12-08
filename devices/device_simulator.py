@@ -17,7 +17,7 @@ from datetime import datetime
 # Configuration from environment variables
 DEVICE_ID = os.getenv('DEVICE_ID', 'device_001')
 DEVICE_TYPE = os.getenv('DEVICE_TYPE', 'generic')
-SERVER_URL = os.getenv('SERVER_URL', 'http://192.168.6.131:5002')
+SERVER_URL = os.getenv('SERVER_URL', 'http://192.168.6.131:5000')
 REQUEST_INTERVAL = int(os.getenv('REQUEST_INTERVAL', '1'))
 
 # Realistic user agents for IoT devices

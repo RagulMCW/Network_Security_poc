@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   endpoint_behavior_attacker:
     build: .

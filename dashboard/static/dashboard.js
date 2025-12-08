@@ -124,8 +124,25 @@ async function refreshDevices() {
 
         const container = document.getElementById('devices-container');
         const prod = data.production_devices || [];
-        const beelzebub = data.beelzebub && data.beelzebub.devices ? data.beelzebub.devices : (data.honeypot_devices || []);
+        let beelzebub = data.beelzebub && data.beelzebub.devices ? data.beelzebub.devices : (data.honeypot_devices || []);
         const blocked = data.blocked_devices || [];
+        
+        // IMPORTANT: Add isolated devices from blocked_devices.json to honeypot section
+        blocked.forEach(d => {
+            if (d.status === 'active' && d.container_name) {
+                // Check if not already in beelzebub list
+                if (!beelzebub.find(b => b.name === d.container_name)) {
+                    beelzebub.push({
+                        name: d.container_name,
+                        ip: d.honeypot_ip || d.original_ip,
+                        original_ip: d.original_ip,
+                        method: d.method,
+                        image: d.method === 'network_switch' ? '🔒 Isolated' : '🔀 DNAT',
+                        isolated: true
+                    });
+                }
+            }
+        });
 
         let html = `<div class="grid">`;
 
@@ -184,17 +201,25 @@ async function refreshDevices() {
             html += `<div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No devices currently isolated</div>`;
         } else {
             beelzebub.forEach(d => {
+                const method = d.method || 'unknown';
+                const methodBadge = method === 'network_switch' ? '🔒 ISOLATED' : '🔀 DNAT';
+                const methodColor = method === 'network_switch' ? '#ef4444' : '#f59e0b';
+                const honeypotIP = d.ip || 'N/A';
+                const originalIP = d.original_ip || 'N/A';
+                
                 html += `
                     <div class="device-card isolated">
                         <div class="device-header">
                             <div>
                                 <div class="device-name">🍯 ${escapeHtml(d.name || 'Isolated Device')}</div>
                                 <div class="device-type font-mono text-warning">ISOLATED</div>
+                                <span class="status-badge" style="background: ${methodColor}; color: white; font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.3rem;">${methodBadge}</span>
                             </div>
                         </div>
-                        <div class="device-info">
-                            <div><span class="text-muted">IP:</span> ${d.ip || 'N/A'}</div>
-                            <div><span class="text-muted">Image:</span> ${escapeHtml(d.image || 'N/A')}</div>
+                        <div class="device-info" style="font-size: 0.85rem;">
+                            <div><span class="text-muted">Original IP:</span> ${originalIP}</div>
+                            ${method === 'network_switch' ? `<div><span class="text-muted">Honeypot IP:</span> <strong style="color: ${methodColor};">${honeypotIP}</strong></div>` : `<div><span class="text-muted">IP:</span> ${honeypotIP}</div>`}
+                            <div><span class="text-muted">Method:</span> ${escapeHtml(d.image || method)}</div>
                         </div>
                         <div class="device-actions">
                             <button class="btn btn-success btn-small" onclick="restoreDevice('${escapeHtml(d.name)}')">
@@ -237,21 +262,30 @@ async function refreshDevices() {
                     }
                 }
                 
+                // Get proper display info - prefer container_name and original_ip
+                const deviceName = d.container_name || d.device_id || d.ip || 'Unknown';
+                const deviceIP = d.original_ip || d.ip || 'N/A';
+                const method = d.method || 'dnat_reroute';
+                const methodBadge = method === 'network_switch' ? '🔒 ISOLATED' : '🔀 DNAT';
+                const methodColor = method === 'network_switch' ? '#ef4444' : '#f59e0b';
+                
                 html += `
                     <div class="device-card" style="border-color: var(--danger); background: rgba(239, 68, 68, 0.1);">
                         <div class="device-header">
                             <div>
-                                <div class="device-name">🚫 ${escapeHtml(d.ip)}</div>
+                                <div class="device-name">🚫 ${escapeHtml(deviceName)}</div>
                                 <div class="device-type font-mono text-danger">BLOCKED</div>
+                                <span class="status-badge" style="background: ${methodColor}; color: white; font-size: 0.75rem; padding: 0.2rem 0.5rem; margin-top: 0.3rem;">${methodBadge}</span>
                             </div>
                         </div>
                         <div class="device-info" style="font-size: 0.85rem;">
+                            <div style="margin-bottom: 0.3rem;"><span class="text-muted">IP:</span> <strong>${escapeHtml(deviceIP)}</strong></div>
                             <div style="margin-bottom: 0.3rem;"><span class="text-muted">Reason:</span> <strong>${escapeHtml(simpleReason)}</strong></div>
                             <div style="margin-bottom: 0.3rem;"><span class="text-muted">Blocked:</span> ${blockedDate}</div>
                             <div><span class="text-danger">⛔ Network Access Denied</span></div>
                         </div>
                         <div class="device-actions">
-                            <button class="btn btn-success btn-small" onclick="unblockDevice('${escapeHtml(d.ip)}')">
+                            <button class="btn btn-success btn-small" onclick="unblockDevice('${escapeHtml(deviceIP)}', '${escapeHtml(deviceName)}')">
                                 <i class="fas fa-unlock"></i> Unblock
                             </button>
                         </div>
@@ -312,14 +346,18 @@ async function cleanupDevices() {
     }
 }
 
-async function unblockDevice(ip) {
-    if (!confirm(`Unblock device ${ip}? This will allow it to rejoin the network.`)) return;
-    showToast(`Unblocking ${ip}...`, 'success');
+async function unblockDevice(ip, containerName = null) {
+    const displayName = containerName || ip;
+    if (!confirm(`Unblock device ${displayName}? This will restore it to production network.`)) return;
+    showToast(`Unblocking ${displayName}...`, 'success');
     try {
         const response = await fetch('/api/devices/unblock', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip: ip })
+            body: JSON.stringify({ 
+                ip: ip,
+                container_name: containerName 
+            })
         });
         const data = await response.json();
         showToast(data.message, data.success ? 'success' : 'error');
@@ -626,22 +664,35 @@ async function refreshReroutes() {
         const countBadge = document.getElementById('reroute-count');
         const reroutes = data.active_reroutes || [];
         
-        countBadge.textContent = `${reroutes.length} Rerouted`;
+        countBadge.textContent = `${reroutes.length} Isolated`;
         countBadge.className = reroutes.length > 0 ? 'status-badge status-on' : 'status-badge status-off';
         
         if (reroutes.length > 0) {
-            listDiv.innerHTML = reroutes.map(reroute => `
-                <div class="card" style="margin-bottom: 1rem; border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.1); padding: 1rem;">
+            listDiv.innerHTML = reroutes.map(reroute => {
+                const isNetworkSwitch = reroute.method === 'network_switch';
+                const borderColor = isNetworkSwitch ? '#ef4444' : '#f59e0b';
+                const bgColor = isNetworkSwitch ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+                const icon = isNetworkSwitch ? 'fas fa-ban' : 'fas fa-exchange-alt';
+                const badge = isNetworkSwitch ? '🔒 ISOLATED' : '🔀 DNAT';
+                const badgeBg = isNetworkSwitch ? '#ef4444' : '#f59e0b';
+                
+                return `
+                <div class="card" style="margin-bottom: 1rem; border-left: 4px solid ${borderColor}; background: ${bgColor}; padding: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="flex: 1;">
                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <i class="fas fa-ban" style="color: #ef4444;"></i>
-                                <strong style="color: #ef4444; font-size: 1.1em;">${reroute.container}</strong>
-                                <span class="status-badge" style="background: #ef4444; color: white;">🔒 ISOLATED</span>
+                                <i class="${icon}" style="color: ${borderColor};"></i>
+                                <strong style="color: ${borderColor}; font-size: 1.1em;">${reroute.container}</strong>
+                                <span class="status-badge" style="background: ${badgeBg}; color: white;">${badge}</span>
                             </div>
                             <div class="text-muted" style="font-size: 0.9em;">
-                                <div>📍 Honeypot IP: <strong>${reroute.ip}</strong></div>
-                                <div>🔧 Status: <strong style="color: #ef4444;">Traffic redirected to honeypot_net</strong></div>
+                                <div>📍 Original IP: <strong>${reroute.ip}</strong></div>
+                                ${isNetworkSwitch ? 
+                                    `<div>🍯 Honeypot IP: <strong style="color: ${borderColor};">${reroute.honeypot_ip || 'N/A'}</strong></div>
+                                    <div>🔒 Status: <strong style="color: ${borderColor};">COMPLETELY ISOLATED</strong> (no production access)</div>` :
+                                    `<div>🔧 Status: <strong style="color: ${borderColor};">${reroute.rules_count || 0} iptables DNAT rules active</strong></div>
+                                    <div>🍯 Target: <strong>${reroute.honeypot_ip || 'Beelzebub'}</strong></div>`
+                                }
                             </div>
                         </div>
                         <button class="btn btn-success btn-small" onclick="removeReroute('${reroute.container}')" style="margin-left: 1rem;">
@@ -649,9 +700,10 @@ async function refreshReroutes() {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         } else {
-            listDiv.innerHTML = '<div class="text-muted" style="text-align: center; padding: 1rem;">No devices isolated.</div>';
+            listDiv.innerHTML = '<div class="text-muted" style="text-align: center; padding: 1rem;">No devices currently isolated</div>';
         }
     } catch (error) {
         console.error('Error refreshing reroutes:', error);
@@ -676,6 +728,104 @@ async function removeReroute(containerName) {
         }
     } catch (error) {
         showToast('Error restoring container', 'error');
+    }
+}
+
+async function refreshLLMLogs() {
+    try {
+        const response = await fetch('/api/beelzebub/llm_logs');
+        const data = await response.json();
+        
+        const logsDiv = document.getElementById('llm-logs');
+        const llmResponses = data.llm_responses || [];
+        
+        if (llmResponses.length === 0) {
+            logsDiv.innerHTML = '<div class="log-entry">No LLM responses recorded yet</div>';
+            return;
+        }
+        
+        logsDiv.innerHTML = llmResponses.map(entry => {
+            const time = new Date(entry.time).toLocaleString();
+            const command = entry.command || 'N/A';
+            const response = entry.ai_response || 'No response';
+            const sourceIp = entry.source_ip || 'unknown';
+            const user = entry.user || 'unknown';
+            
+            // Truncate long responses
+            let displayResponse = response;
+            if (response.length > 300) {
+                displayResponse = response.substring(0, 300) + '...';
+            }
+            
+            return `
+                <div class="log-entry" style="margin-bottom: 1rem; padding: 1rem; background: rgba(52, 152, 219, 0.05); border-left: 3px solid #3498db;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                                <span class="status-badge" style="background: #3498db; color: white;">
+                                    <i class="fas fa-robot"></i> AI Response
+                                </span>
+                                <span style="color: var(--text-muted); font-size: 0.85rem;">
+                                    <i class="fas fa-clock"></i> ${time}
+                                </span>
+                            </div>
+                            <div style="margin-bottom: 0.5rem;">
+                                <strong style="color: var(--text-secondary);">
+                                    <i class="fas fa-user"></i> ${user}@${sourceIp}
+                                </strong>
+                                <span style="color: var(--text-muted); margin-left: 1rem;">
+                                    <i class="fas fa-terminal"></i> ${entry.protocol}
+                                </span>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                                <strong style="color: #f39c12;">$ ${command}</strong>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9rem; color: #2ecc71; white-space: pre-wrap;">
+${displayResponse}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Error refreshing LLM logs:', error);
+        document.getElementById('llm-logs').innerHTML = '<div class="log-entry">Error loading LLM logs</div>';
+    }
+}
+
+async function clearAllDNATRules() {
+    if (!confirm('⚠️ WARNING: This will remove ALL DNAT iptables rules for ALL devices!\n\nAll traffic rerouting will be stopped and devices will return to normal operation.\n\nThis action cannot be undone. Continue?')) {
+        return;
+    }
+    
+    showToast('Clearing all DNAT rules...', 'success');
+    
+    try {
+        const response = await fetch('/api/beelzebub/clear_all_dnat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const message = `✅ Successfully cleared ${data.rules_removed} rules for ${data.devices_cleared} devices!`;
+            showToast(message, 'success');
+            
+            // Show detailed results
+            if (data.details && data.details.length > 0) {
+                console.log('Cleared rules:', data.details);
+            }
+            
+            // Refresh the reroutes list
+            setTimeout(refreshReroutes, 1000);
+        } else {
+            showToast(`Failed: ${data.message}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error clearing DNAT rules:', error);
+        showToast('Error clearing DNAT rules', 'error');
     }
 }
 
@@ -982,11 +1132,14 @@ function showPage(pageName, event) {
     else if (pageName === 'devices') refreshDevices();
     else if (pageName === 'beelzebub') { 
         refreshBeelzebubStats(); 
-        refreshReroutes(); 
-        // Auto-refresh Beelzebub logs every 1 second
+        refreshReroutes();
+        refreshLLMLogs();
+        // Auto-refresh Beelzebub logs and reroutes every 5 seconds
         beelzebubRefreshInterval = setInterval(() => {
             refreshBeelzebubStats();
-        }, 1000);
+            refreshReroutes();  // Auto-refresh isolated devices
+            refreshLLMLogs();
+        }, 5000);
     }
     else if (pageName === 'logs') refreshDeviceData();
 }
@@ -1580,7 +1733,14 @@ setInterval(() => {
     if (currentPage === 'network-map') refreshNetworkMap();
     else if (currentPage === 'monitor') refreshMonitorStatus();
     else if (currentPage === 'devices') refreshDevices();
-    else if (currentPage === 'honeypot') { refreshBeelzebubStats(); refreshReroutes(); }
+    else if (currentPage === 'beelzebub') { 
+        refreshBeelzebubStats(); 
+        refreshReroutes(); 
+        refreshLLMLogs();
+        // Auto-refresh reroutes every 5 seconds
+        if (window.reroutesInterval) clearInterval(window.reroutesInterval);
+        window.reroutesInterval = setInterval(refreshReroutes, 5000);
+    }
     else if (currentPage === 'logs') {
         const activeTab = document.querySelector('#page-logs .tab.active');
         if (activeTab) {
@@ -1590,7 +1750,7 @@ setInterval(() => {
             else if (text.includes('Honeypot')) viewBeelzebubLogsInTab();
         }
     }
-}, 5000);
+}, 10000);
 
 // Initial load
 refreshStatus();

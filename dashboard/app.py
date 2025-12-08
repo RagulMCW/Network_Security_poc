@@ -478,9 +478,20 @@ def block_device():
             for line in ps_result['output'].strip().split('\n'):
                 if ':' in line:
                     cid, cname = line.split(':', 1)
-                    # Inspect container network settings
+                    # Check if this container has the target IP on any network
+                    # Try custom_net first (most common)
+                    ip_check_cmd = f'docker inspect {cid} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}" 2>/dev/null'
+                    ip_check = run_wsl_command(ip_check_cmd, timeout=5)
+                    
+                    if ip_check['success'] and ip_check['output'].strip() == ip:
+                        container_id = cid
+                        container_name = cname
+                        container_found = True
+                        break
+                    
+                    # If not on custom_net, check all networks
                     inspect_result = run_wsl_command(f'docker inspect {cid} --format "{{{{.NetworkSettings.Networks}}}}"', timeout=5)
-                    if inspect_result['success'] and ip in inspect_result['output']:
+                    if inspect_result['success'] and (ip in inspect_result['output'] or f"{ip}/" in inspect_result['output']):
                         container_id = cid
                         container_name = cname
                         container_found = True
@@ -521,26 +532,57 @@ def block_device():
 
 @app.route('/api/devices/unblock', methods=['POST'])
 def unblock_device():
-    """Unblock a device by IP address - removes from blocked list and clears iptables"""
+    """Unblock a device by IP or container name - removes from blocked list and restores network"""
     data = request.get_json()
     ip = data.get('ip')
+    container_name = data.get('container_name')
     
-    if not ip:
-        return jsonify({'success': False, 'message': 'IP address required'}), 400
+    if not ip and not container_name:
+        return jsonify({'success': False, 'message': 'IP address or container name required'}), 400
     
     try:
-        # Remove from blocked devices list
-        remove_blocked_device(ip)
+        # Find device in blocked_devices.json
+        blocked_devices = load_blocked_devices()
+        device_to_remove = None
         
-        # Clear any iptables rules for this IP (if any were applied)
-        # This removes both DNAT and DROP rules
-        iptables_clear = run_wsl_command(f'sudo iptables -t nat -D PREROUTING -s {ip} -j DNAT --to-destination 192.168.7.3 2>/dev/null || true')
-        iptables_drop_clear = run_wsl_command(f'sudo iptables -D FORWARD -s {ip} -j DROP 2>/dev/null || true')
+        for device in blocked_devices:
+            if device.get('original_ip') == ip or device.get('container_name') == container_name:
+                device_to_remove = device
+                break
+        
+        if not device_to_remove:
+            return jsonify({'success': False, 'message': f'Device not found in blocked list'}), 404
+        
+        container = device_to_remove.get('container_name')
+        original_ip = device_to_remove.get('original_ip', ip)
+        method = device_to_remove.get('method', 'dnat_reroute')
+        
+        # Restore based on method
+        if method == 'network_switch':
+            # Disconnect from honeypot and reconnect to production
+            honeypot_network = 'honey_pot_honeypot_net'
+            disconnect_cmd = f'docker network disconnect {honeypot_network} {container} 2>/dev/null || true'
+            run_wsl_command(disconnect_cmd)
+            
+            reconnect_cmd = f'docker network connect custom_net {container}'
+            reconnect_result = run_wsl_command(reconnect_cmd)
+            
+            if not reconnect_result['success']:
+                return jsonify({'success': False, 'message': f'Failed to restore network: {reconnect_result["output"]}'}), 500
+        else:
+            # Clear DNAT iptables rules
+            iptables_clear = run_wsl_command(f'sudo iptables -t nat -D PREROUTING -s {original_ip} -j DNAT --to-destination 192.168.7.3 2>/dev/null || true')
+            iptables_drop_clear = run_wsl_command(f'sudo iptables -D FORWARD -s {original_ip} -j DROP 2>/dev/null || true')
+        
+        # Remove from blocked devices list
+        updated_devices = [d for d in blocked_devices if d != device_to_remove]
+        save_blocked_devices(updated_devices)
         
         return jsonify({
             'success': True,
-            'message': f'Device {ip} unblocked and can rejoin network',
-            'ip': ip
+            'message': f'Device {container or ip} restored to production network',
+            'ip': original_ip,
+            'container': container
         })
         
     except Exception as e:
@@ -775,6 +817,75 @@ def get_beelzebub_stats():
             'postgresql': 5432,
             'log_viewer': 8888
         }
+    })
+
+@app.route('/api/beelzebub/llm_logs')
+def get_llm_logs():
+    """Get LLM AI response logs from Beelzebub honeypot"""
+    
+    beelzebub_log = os.path.join(HONEYPOT_DIR, 'logs', 'beelzebub.log')
+    llm_jsonl_file = os.path.join(HONEYPOT_DIR, 'logs', 'llm_responses.jsonl')
+    
+    llm_responses = []
+    
+    # Primary source: Parse from main beelzebub.log
+    if os.path.exists(beelzebub_log) and os.path.getsize(beelzebub_log) > 0:
+        try:
+            with open(beelzebub_log, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    try:
+                        log_entry = json.loads(line.strip())
+                        
+                        # Look for SSH Raw Command events with CommandOutput
+                        if log_entry.get('msg') == 'New Event' and 'event' in log_entry:
+                            event = log_entry['event']
+                            command = event.get('Command', '').strip()
+                            output = event.get('CommandOutput', '').strip()
+                            
+                            # Only include if command has AI-generated output (not empty, not "command not found")
+                            if command and output and output != 'command not found' and len(output) > 0:
+                                llm_responses.append({
+                                    'time': event.get('DateTime', log_entry.get('time', 'N/A')),
+                                    'source_ip': event.get('SourceIp', 'unknown'),
+                                    'user': event.get('User', 'unknown'),
+                                    'protocol': event.get('Protocol', 'SSH'),
+                                    'command': command,
+                                    'ai_response': output,
+                                    'msg': event.get('Msg', 'SSH Raw Command')
+                                })
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+        except Exception as e:
+            print(f"Error reading beelzebub.log: {e}")
+    
+    # Fallback: Try reading from llm_responses.jsonl if it exists
+    if not llm_responses and os.path.exists(llm_jsonl_file) and os.path.getsize(llm_jsonl_file) > 0:
+        try:
+            with open(llm_jsonl_file, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    try:
+                        log_entry = json.loads(line.strip())
+                        llm_responses.append({
+                            'time': log_entry.get('time', 'N/A'),
+                            'source_ip': log_entry.get('source_ip', 'unknown'),
+                            'user': log_entry.get('user', 'unknown'),
+                            'protocol': log_entry.get('protocol', 'SSH'),
+                            'command': log_entry.get('command', ''),
+                            'ai_response': log_entry.get('ai_response', ''),
+                            'msg': log_entry.get('msg', 'SSH Command')
+                        })
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            print(f"Error reading LLM JSONL: {e}")
+    
+    # Sort by time (newest first) and limit to last 100
+    llm_responses.reverse()
+    
+    return jsonify({
+        'success': True,
+        'llm_responses': llm_responses[:100],  # Return last 100 responses
+        'total_count': len(llm_responses)
     })
 
 @app.route('/api/beelzebub/attackers')
@@ -1014,7 +1125,7 @@ def get_honeypot_attackers():
 
 @app.route('/api/beelzebub/reroute', methods=['POST'])
 def reroute_to_beelzebub():
-    """Reroute device/attacker IP to Beelzebub honeypot network"""
+    """Reroute device/attacker traffic to Beelzebub honeypot using DNAT iptables rules"""
     
     data = request.json
     ip_address = data.get('ip_address', '').strip()
@@ -1118,141 +1229,125 @@ def reroute_to_beelzebub():
             'message': error_msg
         })
     
-    print(f"📦 Found container: {container_name}")
+    print(f"📦 Found container: {container_name} with IP {ip_address}")
     
-    # Step 1: Ensure honeypot network exists
-    check_honeypot_net = run_wsl_command(f'docker network ls | grep {honeypot_network}')
-    if not (check_honeypot_net['success'] and honeypot_network in check_honeypot_net['output']):
-        create_net = run_wsl_command(f'docker network create --subnet=192.168.7.0/24 {honeypot_network}')
-        if not create_net['success']:
-            return jsonify({
-                'success': False,
-                'message': f'Failed to create {honeypot_network}'
-            })
+    # Get Beelzebub honeypot IP and network
+    get_beelzebub_network_cmd = 'docker inspect beelzebub-honeypot --format "{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}" 2>/dev/null | grep -o "[^ ]*honeypot[^ ]*" | head -1'
+    beelzebub_network_result = run_wsl_command(get_beelzebub_network_cmd)
+    honeypot_network = beelzebub_network_result['output'].strip() if (beelzebub_network_result['success'] and beelzebub_network_result['output'].strip()) else 'honey_pot_honeypot_net'
     
-    # Step 2: Check if already on honeypot_net
-    check_on_honeypot = run_wsl_command(
-        f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
-    )
-    already_on_honeypot = check_on_honeypot['success'] and check_on_honeypot['output'].strip()
-    
-    # Step 3: Connect to honeypot_net (DUAL-HOMED: keep custom_net connection)
-    if not already_on_honeypot:
-        print(f"Connecting {container_name} to {honeypot_network}...")
-        connect_cmd = f'docker network connect {honeypot_network} {container_name}'
-        connect_result = run_wsl_command(connect_cmd)
-        
-        print(f"Connect result: success={connect_result['success']}, output='{connect_result['output']}'")
-        
-        if not connect_result['success']:
-            return jsonify({
-                'success': False,
-                'message': f'Failed to connect {container_name} to honeypot network',
-                'error': connect_result['output']
-            })
-        
-        print(f"✅ Successfully connected {container_name} to {honeypot_network}")
-    else:
-        print(f"Container {container_name} already on {honeypot_network}")
-    
-    # Verify connection was successful
-    verify_cmd = f'docker inspect {container_name} --format "{{{{json .NetworkSettings.Networks}}}}"'
-    verify_result = run_wsl_command(verify_cmd)
-    
-    if verify_result['success']:
-        import json as json_lib
-        try:
-            networks = json_lib.loads(verify_result['output'].strip())
-            connected_networks = list(networks.keys());
-            print(f"Container networks after connection: {connected_networks}")
-            
-            if honeypot_network not in connected_networks:
-                return jsonify({
-                    'success': False,
-                    'message': f'Failed to verify connection to {honeypot_network}. Current networks: {connected_networks}',
-                    'error': 'Connection verification failed'
-                })
-        except Exception as e:
-            print(f"Warning: Could not parse network verification: {e}")
-    
-    # Step 4: Get honeypot IP
-    get_honeypot_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
-    honeypot_ip_result = run_wsl_command(get_honeypot_ip_cmd)
-    device_honeypot_ip = honeypot_ip_result['output'].strip() if honeypot_ip_result['success'] else 'unknown'
-    
-    # Step 5: Get Beelzebub honeypot IP (dynamically)
-    get_beelzebub_ip_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null || echo "192.168.7.3"'
+    get_beelzebub_ip_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
     beelzebub_ip_result = run_wsl_command(get_beelzebub_ip_cmd)
-    honeypot_target_ip = beelzebub_ip_result['output'].strip() if beelzebub_ip_result['success'] and beelzebub_ip_result['output'].strip() else '192.168.7.3'
+    honeypot_target_ip = beelzebub_ip_result['output'].strip() if (beelzebub_ip_result['success'] and beelzebub_ip_result['output'].strip()) else '172.18.0.2'
     
-    print(f"Beelzebub honeypot IP: {honeypot_target_ip}")
+    network_monitor_ip = "192.168.6.131"
     
-    # Step 6: Setup iptables rules to redirect ALL traffic to honeypot
-    # This ensures device traffic goes to honeypot while still being visible on custom_net
+    print(f"🍯 Honeypot network: {honeypot_network}")
+    print(f"🍯 Honeypot IP: {honeypot_target_ip}")
+    print(f"🎯 Network monitor: {network_monitor_ip}")
     
-    # Redirect all outbound traffic from this device to honeypot
-    iptables_rules = [
-        # NAT all TCP traffic from device to honeypot
-        f'iptables -t nat -A PREROUTING -s {ip_address} -p tcp -j DNAT --to-destination {honeypot_target_ip}',
-        # NAT all UDP traffic from device to honeypot  
-        f'iptables -t nat -A PREROUTING -s {ip_address} -p udp -j DNAT --to-destination {honeypot_target_ip}',
-        # Mark packets from this device for special routing
-        f'iptables -t mangle -A PREROUTING -s {ip_address} -j MARK --set-mark 100',
+    # STEP 1: Add iptables DNAT rules to reroute traffic
+    print(f"🔀 Setting up DNAT rerouting for {ip_address} → {honeypot_target_ip}")
+    
+    # DNAT rules for common ports
+    dnat_rules = [
+        f'iptables -t nat -A PREROUTING -s {ip_address} -d {network_monitor_ip} -p tcp --dport 5000 -j DNAT --to-destination {honeypot_target_ip}:8080',
+        f'iptables -t nat -A PREROUTING -s {ip_address} -d {network_monitor_ip} -p tcp --dport 3306 -j DNAT --to-destination {honeypot_target_ip}:3306',
+        f'iptables -t nat -A PREROUTING -s {ip_address} -d {network_monitor_ip} -p tcp --dport 5432 -j DNAT --to-destination {honeypot_target_ip}:5432',
+        f'iptables -t nat -A PREROUTING -s {ip_address} -d {network_monitor_ip} -p tcp --dport 22 -j DNAT --to-destination {honeypot_target_ip}:22'
     ]
     
-    # Apply iptables rules on host
-    for rule in iptables_rules:
-        rule_result = run_wsl_command(f'sudo {rule}')
-        if not rule_result['success']:
-            print(f"Warning: iptables rule failed: {rule}")
-            print(f"  Error: {rule_result['output']}")
+    # FORWARD rules to allow traffic
+    forward_rules = [
+        f'iptables -A FORWARD -s {ip_address} -d {honeypot_target_ip} -p tcp --dport 8080 -j ACCEPT',
+        f'iptables -A FORWARD -s {ip_address} -d {honeypot_target_ip} -p tcp --dport 3306 -j ACCEPT',
+        f'iptables -A FORWARD -s {ip_address} -d {honeypot_target_ip} -p tcp --dport 5432 -j ACCEPT',
+        f'iptables -A FORWARD -s {ip_address} -d {honeypot_target_ip} -p tcp --dport 22 -j ACCEPT',
+        f'iptables -A FORWARD -s {honeypot_target_ip} -d {ip_address} -j ACCEPT'
+    ]
     
-    print(f"✅ Applied traffic redirection rules for {ip_address} → {honeypot_target_ip}")
+    # MASQUERADE for return traffic
+    masquerade_rule = f'iptables -t nat -A POSTROUTING -d {honeypot_target_ip} -j MASQUERADE'
     
-    # Step 6: Log the reroute (with rotation - keep last 100 entries)
-    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Rerouted {container_name} ({ip_address}) → Honeypot ({honeypot_target_ip}) | Device Honeypot IP: {device_honeypot_ip}"
+    # Apply all iptables rules
+    all_rules = dnat_rules + forward_rules + [masquerade_rule]
+    failed_rules = []
+    applied_rules = 0
+    
+    for rule in all_rules:
+        iptables_cmd = f'sudo {rule}'
+        iptables_result = run_wsl_command(iptables_cmd)
+        if iptables_result['success']:
+            applied_rules += 1
+            print(f"  ✅ Applied: {rule}")
+        else:
+            failed_rules.append(f"{rule}: {iptables_result.get('output', 'Unknown error')}")
+            print(f"  ❌ Failed: {rule}")
+    
+    if failed_rules:
+        return jsonify({
+            'success': False,
+            'message': f'Failed to apply {len(failed_rules)} iptables rules',
+            'errors': failed_rules
+        })
+    
+    print(f"✅ Applied {applied_rules} iptables DNAT rules")
+    
+    # STEP 2: Connect device to honeypot network (for bidirectional communication)
+    connect_cmd = f'docker network connect {honeypot_network} {container_name} 2>&1'
+    connect_result = run_wsl_command(connect_cmd)
+    
+    if not connect_result['success'] and 'already exists' not in connect_result['output']:
+        print(f"⚠️ Note: Could not connect to {honeypot_network}: {connect_result['output']}")
+    
+    # Get device's new IP on honeypot network
+    honeypot_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
+    honeypot_ip_result = run_wsl_command(honeypot_ip_cmd)
+    device_honeypot_ip = honeypot_ip_result['output'].strip() if (honeypot_ip_result['success'] and honeypot_ip_result['output'].strip()) else 'DNAT only'
+    
+    print(f"🔗 Device connected to honeypot network: {device_honeypot_ip}")
+    
+    # STEP 3: Log the reroute
+    log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] DNAT REROUTE: {container_name} ({ip_address}) → Honeypot ({honeypot_target_ip}) via DNAT | Rules: {applied_rules}"
     
     try:
         os.makedirs(os.path.join(HONEYPOT_DIR, 'logs'), exist_ok=True)
         log_file = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
         
-        # Read existing logs
         existing_logs = []
         if os.path.exists(log_file):
             with open(log_file, 'r') as f:
                 existing_logs = [line.strip() for line in f if line.strip()]
         
-        # Add new entry
         existing_logs.append(log_entry)
         
-        # Keep only last 100 entries (log rotation)
         if len(existing_logs) > 100:
             existing_logs = existing_logs[-100:]
         
-        # Write back
         with open(log_file, 'w') as f:
             for log in existing_logs:
                 f.write(log + '\n')
     except Exception as e:
         print(f"Warning: Could not write to reroutes log: {e}")
     
-    print(f"✅ Successfully rerouted {container_name}: Traffic redirected to honeypot via iptables")
+    print(f"✅ Successfully deployed DNAT rerouting - traffic from {ip_address} is now being rerouted to honeypot")
     
     return jsonify({
         'success': True,
-        'message': f'Successfully rerouted {container_name} to honeypot! Traffic now redirected via iptables to {honeypot_target_ip}',
+        'message': f'✅ Traffic rerouted via DNAT iptables rules! Device {container_name} stays on network at {ip_address}. Traffic to network-monitor ({network_monitor_ip}) is redirected to Beelzebub honeypot ({honeypot_target_ip}). {applied_rules} iptables rules applied.',
         'container_name': container_name,
         'original_ip': ip_address,
-        'honeypot_ip': device_honeypot_ip,
+        'device_honeypot_ip': device_honeypot_ip,
         'honeypot_target': honeypot_target_ip,
-        'honeypot_network': honeypot_network,
-        'method': 'iptables_redirect',
+        'method': 'DNAT_iptables',
+        'rules_applied': applied_rules,
+        'ports_rerouted': ['HTTP:5000→8080', 'MySQL:3306', 'PostgreSQL:5432', 'SSH:22'],
         'timestamp': datetime.now().isoformat()
     })
 
 @app.route('/api/beelzebub/reroutes')
 def get_reroutes():
-    """Get list of rerouted IPs to Beelzebub"""
+    """Get list of rerouted IPs to Beelzebub - check blocked_devices.json and verify containers exist"""
     
     honeypot_network = 'honey_pot_honeypot_net'
     
@@ -1269,64 +1364,120 @@ def get_reroutes():
         except Exception as e:
             print(f"Error reading reroutes log: {e}")
     
-    # Get containers on honeypot_net (these are rerouted)
-    honeypot_containers_cmd = f'docker ps --filter "network={honeypot_network}" --format "{{{{.Names}}}}"'
-    
-    result = run_wsl_command(honeypot_containers_cmd)
     active_reroutes = []
     
-    if result['success'] and result['output'].strip():
-        container_names = result['output'].strip().split('\n')
+    # Get Beelzebub honeypot network and IP
+    get_beelzebub_network_cmd = 'docker inspect beelzebub-honeypot --format "{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}" 2>/dev/null | grep -o "[^ ]*honeypot[^ ]*" | head -1'
+    beelzebub_network_result = run_wsl_command(get_beelzebub_network_cmd)
+    beelzebub_network = beelzebub_network_result['output'].strip() if (beelzebub_network_result['success'] and beelzebub_network_result['output'].strip()) else 'honey_pot_honeypot_net'
+    
+    get_beelzebub_ip_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{beelzebub_network}.IPAddress}}}}" 2>/dev/null'
+    beelzebub_ip_result = run_wsl_command(get_beelzebub_ip_cmd)
+    honeypot_target_ip = beelzebub_ip_result['output'].strip() if (beelzebub_ip_result['success'] and beelzebub_ip_result['output'].strip()) else '172.18.0.2'
+    
+    # PRIMARY SOURCE: Read blocked_devices.json (MCP agent tracking file)
+    blocked_devices = load_blocked_devices()
+    containers_to_remove = []  # Track deleted containers
+    
+    for device in blocked_devices:
+        container_name = device.get('container_name')
+        if not container_name:
+            continue
         
-        for container_name in container_names:
-            container_name = container_name.strip()
-            if not container_name or 'beelzebub' in container_name.lower() or 'pcap' in container_name.lower():
-                continue
+        # CRITICAL: Verify container still exists
+        check_container_cmd = f'docker inspect {container_name} --format "{{{{.State.Running}}}}" 2>/dev/null'
+        container_check = run_wsl_command(check_container_cmd)
+        
+        if not container_check['success'] or not container_check['output'].strip():
+            print(f"⚠️ Container {container_name} no longer exists, will be removed from tracking")
+            containers_to_remove.append(device)
+            continue
+        
+        method = device.get('method', 'dnat_reroute')
+        original_ip = device.get('original_ip', 'N/A')
+        honeypot_ip = device.get('honeypot_ip', honeypot_target_ip)
+        
+        # Get current network status
+        if method == 'network_switch':
+            # Complete network switch - check if on honeypot network
+            get_honeypot_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{beelzebub_network}.IPAddress}}}}" 2>/dev/null'
+            honeypot_ip_check = run_wsl_command(get_honeypot_ip_cmd)
+            current_honeypot_ip = honeypot_ip_check['output'].strip() if honeypot_ip_check['success'] and honeypot_ip_check['output'].strip() else None
             
-            # Show ALL isolated containers (except honeypot infrastructure)
-            # Get IP on honeypot_net
-            ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}"'
-            ip_result = run_wsl_command(ip_cmd)
+            # Check if still on custom_net (shouldn't be)
+            get_custom_ip_cmd = f'docker inspect {container_name} --format "{{{{.NetworkSettings.Networks.custom_net.IPAddress}}}}" 2>/dev/null'
+            custom_ip_check = run_wsl_command(get_custom_ip_cmd)
+            still_on_custom = custom_ip_check['success'] and custom_ip_check['output'].strip()
             
-            if ip_result['success'] and ip_result['output'].strip():
+            if current_honeypot_ip:
                 active_reroutes.append({
                     'container': container_name,
-                    'ip': ip_result['output'].strip(),
-                    'network': honeypot_network,
-                    'method': 'network_isolation',
-                    'status': 'isolated'
+                    'ip': original_ip,
+                    'honeypot_ip': current_honeypot_ip,
+                    'network': f'Isolated (was {original_ip} → now {current_honeypot_ip})',
+                    'method': 'network_switch',
+                    'status': 'isolated',
+                    'rules_count': 0,
+                    'description': f'Complete network isolation - disconnected from production, connected to honeypot only'
+                })
+            elif still_on_custom:
+                # Inconsistent state - marked as isolated but still on custom_net
+                print(f"⚠️ {container_name} marked as isolated but still on custom_net")
+        
+        else:  # DNAT method
+            # DNAT traffic rerouting - check iptables rules
+            count_rules_cmd = f'sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep "{original_ip}" | grep "DNAT" | wc -l'
+            count_result = run_wsl_command(count_rules_cmd)
+            rules_count = int(count_result['output'].strip()) if (count_result['success'] and count_result['output'].strip().isdigit()) else 0
+            
+            if rules_count > 0:
+                active_reroutes.append({
+                    'container': container_name,
+                    'ip': original_ip,
+                    'honeypot_ip': honeypot_ip,
+                    'network': f'custom_net (DNAT → {honeypot_ip})',
+                    'method': 'DNAT_iptables',
+                    'status': 'active',
+                    'rules_count': rules_count,
+                    'description': f'Traffic rerouted via {rules_count} iptables DNAT rules to Beelzebub honeypot'
                 })
     
-    # Also check for iptables-redirected devices (still on custom_net but traffic redirected)
-    iptables_check_cmd = 'sudo iptables -t nat -L PREROUTING -n -v 2>/dev/null | grep "DNAT" | grep "192.168.7"'
+    # Clean up deleted containers from blocked_devices.json
+    if containers_to_remove:
+        print(f"🧹 Removing {len(containers_to_remove)} deleted containers from tracking")
+        updated_devices = [d for d in blocked_devices if d not in containers_to_remove]
+        save_blocked_devices(updated_devices)
+    
+    # FALLBACK: Check iptables DNAT rules to find any untracked rerouted devices
+    iptables_check_cmd = f'sudo iptables -t nat -L PREROUTING -n -v 2>/dev/null | grep "DNAT" | grep "{honeypot_target_ip}"'
     iptables_result = run_wsl_command(iptables_check_cmd)
+    
+    tracked_ips = set(r['ip'] for r in active_reroutes)  # Track IPs already found
     
     if iptables_result['success'] and iptables_result['output'].strip():
         for line in iptables_result['output'].strip().split('\n'):
-            # Parse iptables output line format:
-            # pkts bytes target prot opt in out source destination to
-            # Example: 3406 136K DNAT tcp -- * * 192.168.6.132 0.0.0.0/0 to:192.168.7.2
+            # Parse iptables DNAT rule to extract source IP
+            # Format: pkts bytes target prot opt in out source destination
             parts = line.split()
             
-            # Find source IP (position varies, look for 192.168.6.x)
+            # Look for source IP in 192.168.6.x range
             source_ip = None
-            dest_ip = None
-            
-            for i, part in enumerate(parts):
-                if part.startswith('192.168.6.'):
+            for part in parts:
+                if part.startswith('192.168.6.') and '/' not in part and part != '192.168.6.0':
                     source_ip = part
-                if part.startswith('to:192.168.7.'):
-                    dest_ip = part.replace('to:', '')
+                    break
             
-            if source_ip:
-                # Get all container IPs and names on custom_net
+            if source_ip and source_ip not in tracked_ips:
+                tracked_ips.add(source_ip)
+                
+                # Find container with this IP on custom_net
                 get_containers_cmd = 'docker ps --format "{{.Names}}" --filter "network=custom_net"'
                 containers_result = run_wsl_command(get_containers_cmd)
                 
                 if containers_result['success'] and containers_result['output'].strip():
                     for container in containers_result['output'].strip().split('\n'):
                         container = container.strip()
-                        if not container:
+                        if not container or 'network-monitor' in container:
                             continue
                         
                         # Get container IP on custom_net
@@ -1334,15 +1485,20 @@ def get_reroutes():
                         ip_check = run_wsl_command(ip_check_cmd)
                         
                         if ip_check['success'] and ip_check['output'].strip() == source_ip:
-                            # Check if not already in active_reroutes
-                            if not any(r['container'] == container for r in active_reroutes):
-                                active_reroutes.append({
-                                    'container': container,
-                                    'ip': source_ip,
-                                    'network': f'custom_net → {dest_ip} (iptables)',
-                                    'method': 'iptables_dnat',
-                                    'redirect_to': dest_ip
-                                })
+                            # Count DNAT rules for this IP
+                            count_rules_cmd = f'sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep "{source_ip}" | grep "DNAT" | wc -l'
+                            count_result = run_wsl_command(count_rules_cmd)
+                            rules_count = int(count_result['output'].strip()) if (count_result['success'] and count_result['output'].strip().isdigit()) else 0
+                            
+                            active_reroutes.append({
+                                'container': container,
+                                'ip': source_ip,
+                                'network': f'custom_net (DNAT → {honeypot_target_ip})',
+                                'method': 'DNAT_iptables',
+                                'status': 'active',
+                                'rules_count': rules_count,
+                                'description': f'Traffic rerouted via {rules_count} iptables DNAT rules to Beelzebub honeypot'
+                            })
                             break
     
     return jsonify({
@@ -1449,6 +1605,185 @@ def remove_reroute():
         'ip': final_ip,
         'method': 'iptables_removed'
     })
+
+@app.route('/api/beelzebub/clear_all_dnat', methods=['POST'])
+def clear_all_dnat_rules():
+    """Clear ALL DNAT iptables rules for all devices - nuclear option"""
+    
+    print("🧹 CLEARING ALL DNAT RULES FOR ALL DEVICES")
+    
+    try:
+        # Step 1: Get all containers on custom_net with their IPs
+        list_containers_cmd = 'docker network inspect custom_net --format "{{json .Containers}}"'
+        containers_result = run_wsl_command(list_containers_cmd)
+        
+        cleared_rules = []
+        errors = []
+        
+        if containers_result['success'] and containers_result['output'].strip():
+            import json
+            try:
+                containers_data = json.loads(containers_result['output'])
+                
+                # Get all container IPs
+                container_ips = []
+                for container_id, container_info in containers_data.items():
+                    ip = container_info.get('IPv4Address', '').split('/')[0]
+                    name = container_info.get('Name', 'unknown')
+                    if ip:
+                        container_ips.append((ip, name))
+                        print(f"Found container: {name} at {ip}")
+                
+                # Step 2: Get Beelzebub honeypot IPs (all possible destinations)
+                beelzebub_ips = []
+                
+                # Check honey_pot_honeypot_net
+                get_beelzebub1_cmd = 'docker inspect beelzebub-honeypot --format "{{.NetworkSettings.Networks.honey_pot_honeypot_net.IPAddress}}" 2>/dev/null'
+                beelzebub1_result = run_wsl_command(get_beelzebub1_cmd)
+                if beelzebub1_result['success'] and beelzebub1_result['output'].strip():
+                    beelzebub_ips.append(beelzebub1_result['output'].strip())
+                
+                # Check honeypot_net
+                get_beelzebub2_cmd = 'docker inspect beelzebub-honeypot --format "{{.NetworkSettings.Networks.honeypot_net.IPAddress}}" 2>/dev/null'
+                beelzebub2_result = run_wsl_command(get_beelzebub2_cmd)
+                if beelzebub2_result['success'] and beelzebub2_result['output'].strip():
+                    beelzebub_ips.append(beelzebub2_result['output'].strip())
+                
+                # Add common honeypot IPs
+                beelzebub_ips.extend(['192.168.7.2', '192.168.7.3', '172.18.0.2'])
+                beelzebub_ips = list(set(beelzebub_ips))  # Remove duplicates
+                
+                print(f"Honeypot IPs to clear: {beelzebub_ips}")
+                
+                # Step 3: Remove DNAT rules for each container IP + honeypot IP combination
+                network_monitor_ip = "192.168.6.131"
+                
+                for container_ip, container_name in container_ips:
+                    for honeypot_ip in beelzebub_ips:
+                        # DNAT rules for common ports
+                        dnat_rules = [
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -d {network_monitor_ip} -p tcp --dport 5000 -j DNAT --to-destination {honeypot_ip}:8080',
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -d {network_monitor_ip} -p tcp --dport 3306 -j DNAT --to-destination {honeypot_ip}:3306',
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -d {network_monitor_ip} -p tcp --dport 5432 -j DNAT --to-destination {honeypot_ip}:5432',
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -d {network_monitor_ip} -p tcp --dport 22 -j DNAT --to-destination {honeypot_ip}:22',
+                            # Generic DNAT rules
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -p tcp -j DNAT --to-destination {honeypot_ip}',
+                            f'iptables -t nat -D PREROUTING -s {container_ip} -p udp -j DNAT --to-destination {honeypot_ip}'
+                        ]
+                        
+                        # FORWARD rules
+                        forward_rules = [
+                            f'iptables -D FORWARD -s {container_ip} -d {honeypot_ip} -p tcp --dport 8080 -j ACCEPT',
+                            f'iptables -D FORWARD -s {container_ip} -d {honeypot_ip} -p tcp --dport 3306 -j ACCEPT',
+                            f'iptables -D FORWARD -s {container_ip} -d {honeypot_ip} -p tcp --dport 5432 -j ACCEPT',
+                            f'iptables -D FORWARD -s {container_ip} -d {honeypot_ip} -p tcp --dport 22 -j ACCEPT',
+                            f'iptables -D FORWARD -s {honeypot_ip} -d {container_ip} -j ACCEPT'
+                        ]
+                        
+                        # MASQUERADE rule
+                        masquerade_rule = f'iptables -t nat -D POSTROUTING -d {honeypot_ip} -j MASQUERADE'
+                        
+                        all_rules = dnat_rules + forward_rules + [masquerade_rule]
+                        
+                        # Execute all rules (ignore errors for non-existent rules)
+                        for rule in all_rules:
+                            rule_cmd = f'sudo {rule} 2>&1 || true'
+                            rule_result = run_wsl_command(rule_cmd)
+                            if rule_result['success'] and 'Bad rule' not in rule_result['output']:
+                                cleared_rules.append(f"{container_name} ({container_ip}): Removed rule")
+                    
+                    # Remove mangle rules
+                    mangle_rule = f'sudo iptables -t mangle -D PREROUTING -s {container_ip} -j MARK --set-mark 100 2>&1 || true'
+                    run_wsl_command(mangle_rule)
+                
+                # Step 4: Flush DNAT-related chains (preserve Docker inter-container communication rules)
+                # Get custom_net bridge name to preserve its ICC rule
+                get_bridge_cmd = "docker network inspect custom_net --format '{{.Id}}' | cut -c1-12"
+                bridge_result = run_wsl_command(get_bridge_cmd)
+                bridge_id = bridge_result['output'].strip() if bridge_result['success'] else ''
+                bridge_name = f"br-{bridge_id}" if bridge_id else "br-b1ac5d1cbe59"
+                
+                # Flush NAT tables (safe - doesn't affect FORWARD rules)
+                flush_commands = [
+                    'sudo iptables -t nat -F PREROUTING 2>&1 || true',
+                    'sudo iptables -t nat -F POSTROUTING 2>&1 || true',
+                    'sudo iptables -t mangle -F PREROUTING 2>&1 || true'
+                ]
+                
+                for flush_cmd in flush_commands:
+                    flush_result = run_wsl_command(flush_cmd)
+                    if flush_result['success']:
+                        cleared_rules.append(f"Flushed: {flush_cmd.split()[3]}")
+                
+                # For FORWARD chain: Remove only DNAT-related rules, keep Docker ICC rules
+                # Find and remove DNAT ACCEPT rules (but not the bridge ICC rule)
+                remove_dnat_forward_cmd = f"sudo iptables -S FORWARD | grep -E 'ACCEPT.*dpt:(5000|3306|5432|22|80|443|8080|21|23)' | sed 's/-A/-D/' | while read rule; do sudo iptables $rule 2>/dev/null || true; done"
+                run_wsl_command(remove_dnat_forward_cmd)
+                
+                # Ensure Docker inter-container communication rule exists (critical for network functionality)
+                ensure_icc_cmd = f"sudo iptables -C FORWARD -i {bridge_name} -o {bridge_name} -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i {bridge_name} -o {bridge_name} -j ACCEPT"
+                icc_result = run_wsl_command(ensure_icc_cmd)
+                if icc_result['success']:
+                    cleared_rules.append(f"✅ Preserved Docker ICC rule for {bridge_name}")
+                
+                # Step 5: Log the mass clear
+                log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] MASS CLEAR: Removed ALL DNAT rules for {len(container_ips)} devices"
+                try:
+                    log_file = os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log')
+                    with open(log_file, 'a') as f:
+                        f.write(log_entry + '\n')
+                except:
+                    pass
+                
+                print(f"✅ Cleared {len(cleared_rules)} DNAT rules for {len(container_ips)} devices")
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'ALL DNAT rules cleared for {len(container_ips)} devices',
+                    'devices_cleared': len(container_ips),
+                    'rules_removed': len(cleared_rules),
+                    'details': cleared_rules[:20]  # First 20 for display
+                })
+                
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    'success': False,
+                    'message': f'Error parsing container data: {str(e)}'
+                }), 500
+        else:
+            # No containers found, flush NAT rules only (preserve FORWARD ICC rules)
+            # Get custom_net bridge name
+            get_bridge_cmd = "docker network inspect custom_net --format '{{.Id}}' | cut -c1-12"
+            bridge_result = run_wsl_command(get_bridge_cmd)
+            bridge_id = bridge_result['output'].strip() if bridge_result['success'] else ''
+            bridge_name = f"br-{bridge_id}" if bridge_id else "br-b1ac5d1cbe59"
+            
+            flush_commands = [
+                'sudo iptables -t nat -F PREROUTING',
+                'sudo iptables -t nat -F POSTROUTING',
+                'sudo iptables -t mangle -F PREROUTING'
+            ]
+            
+            for flush_cmd in flush_commands:
+                run_wsl_command(flush_cmd)
+            
+            # Ensure Docker inter-container communication rule exists (critical)
+            ensure_icc_cmd = f"sudo iptables -C FORWARD -i {bridge_name} -o {bridge_name} -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i {bridge_name} -o {bridge_name} -j ACCEPT"
+            run_wsl_command(ensure_icc_cmd)
+            
+            return jsonify({
+                'success': True,
+                'message': 'All iptables DNAT chains flushed (Docker ICC rules preserved)',
+                'devices_cleared': 0,
+                'rules_removed': 4
+            })
+            
+    except Exception as e:
+        print(f"❌ Error clearing DNAT rules: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
 @app.route('/api/analytics/attacks')
 def get_attack_analytics():
@@ -2428,16 +2763,22 @@ def agent_query():
         env['PYTHONIOENCODING'] = 'utf-8'
         
         # Run agent as subprocess (each query gets fresh event loop)
+        print(f"🤖 Running agent query: {query[:100]}...")
+        print(f"📂 Working directory: {os.path.join(BASE_DIR, 'mcp_agent', 'client')}")
+        print(f"🐍 Python executable: {python_executable}")
+        
         result = subprocess.run(
             [python_executable, agent_script, query],
             capture_output=True,
             text=True,
             encoding='utf-8',
             errors='replace',
-            timeout=120 ,
+            timeout=300,  # Increased to 5 minutes for complex queries
             cwd=os.path.join(BASE_DIR, 'mcp_agent', 'client'),
             env=env
         )
+        
+        print(f"✅ Agent completed with return code: {result.returncode}")
         
         if result.returncode == 0:
             response_text = result.stdout.strip()
@@ -2471,9 +2812,10 @@ def agent_query():
             })
         
     except subprocess.TimeoutExpired:
+        print("⏰ Agent query timed out after 300 seconds")
         return jsonify({
             'success': False,
-            'error': 'Query timeout (120s). The agent is still processing.'
+            'error': 'Query timeout (300s). The agent took too long to process. Try a simpler query or check if MCP server is responding.'
         })
     except Exception as e:
         import traceback
@@ -2773,33 +3115,89 @@ def agent_reroute_to_beelzebub():
         
         print(f"  📦 Found container: {container_name}")
         
-        # Ensure honeypot network exists
-        create_net_cmd = 'docker network ls | grep honeypot_net || docker network create --subnet=192.168.7.0/24 honeypot_net'
-        run_wsl_command(create_net_cmd)
+        # Get Beelzebub honeypot network and IP dynamically
+        get_beelzebub_network_cmd = 'docker inspect beelzebub-honeypot --format "{{range $net, $conf := .NetworkSettings.Networks}}{{$net}} {{end}}" 2>/dev/null | grep -o "[^ ]*honeypot[^ ]*" | head -1'
+        beelzebub_network_result = run_wsl_command(get_beelzebub_network_cmd)
+        honeypot_network = beelzebub_network_result['output'].strip() if (beelzebub_network_result['success'] and beelzebub_network_result['output'].strip()) else 'honey_pot_honeypot_net'
         
-        # Disconnect from custom_net
-        disconnect_cmd = f'docker network disconnect custom_net {container_name}'
-        disconnect_result = run_wsl_command(disconnect_cmd)
+        get_beelzebub_ip_cmd = f'docker inspect beelzebub-honeypot --format "{{{{.NetworkSettings.Networks.{honeypot_network}.IPAddress}}}}" 2>/dev/null'
+        beelzebub_ip_result = run_wsl_command(get_beelzebub_ip_cmd)
+        honeypot_target_ip = beelzebub_ip_result['output'].strip() if (beelzebub_ip_result['success'] and beelzebub_ip_result['output'].strip()) else '172.18.0.2'
         
-        if not disconnect_result['success'] and 'not connected' not in disconnect_result.get('error', '').lower():
-            print(f"  ⚠️ Disconnect warning: {disconnect_result.get('error', '')}")
+        print(f"🍯 Honeypot network: {honeypot_network}")
+        print(f"🍯 Honeypot IP: {honeypot_target_ip}")
         
-        # Connect to honeypot network
-        connect_cmd = f'docker network connect honeypot_net {container_name}'
-        connect_result = run_wsl_command(connect_cmd)
+        # STEP 1: Add iptables DNAT rules to reroute ALL traffic to Beelzebub honeypot
+        # Device STAYS on custom_net - only traffic is redirected
+        print(f"🔀 Setting up DNAT rerouting for {device_ip} → {honeypot_target_ip}")
         
-        if not connect_result['success']:
-            # Rollback: reconnect to custom_net
-            reconnect_cmd = f'docker network connect custom_net {container_name}'
-            run_wsl_command(reconnect_cmd)
+        # DNAT rules for ALL traffic from malicious device - reroute everything to honeypot
+        dnat_rules = [
+            # Reroute ALL HTTP/HTTPS traffic (any destination) to honeypot
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 80 -j DNAT --to-destination {honeypot_target_ip}:8080',
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 443 -j DNAT --to-destination {honeypot_target_ip}:8080',
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 8080 -j DNAT --to-destination {honeypot_target_ip}:8080',
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 5000 -j DNAT --to-destination {honeypot_target_ip}:8080',
             
+            # Reroute ALL SSH traffic to honeypot SSH
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 22 -j DNAT --to-destination {honeypot_target_ip}:22',
+            
+            # Reroute ALL MySQL traffic to honeypot
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 3306 -j DNAT --to-destination {honeypot_target_ip}:3306',
+            
+            # Reroute ALL PostgreSQL traffic to honeypot
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 5432 -j DNAT --to-destination {honeypot_target_ip}:5432',
+            
+            # Reroute FTP traffic
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 21 -j DNAT --to-destination {honeypot_target_ip}:21',
+            
+            # Reroute Telnet traffic
+            f'iptables -t nat -A PREROUTING -s {device_ip} -p tcp --dport 23 -j DNAT --to-destination {honeypot_target_ip}:23'
+        ]
+        
+        # FORWARD rules to allow ALL traffic between malicious device and honeypot
+        forward_rules = [
+            # Allow all TCP traffic from malicious device to honeypot
+            f'iptables -A FORWARD -s {device_ip} -d {honeypot_target_ip} -j ACCEPT',
+            # Allow all return traffic from honeypot to malicious device
+            f'iptables -A FORWARD -s {honeypot_target_ip} -d {device_ip} -j ACCEPT'
+        ]
+        
+        # MASQUERADE for return traffic (source NAT)
+        masquerade_rule = f'iptables -t nat -A POSTROUTING -s {device_ip} -d {honeypot_target_ip} -j MASQUERADE'
+        
+        # Apply all iptables rules
+        all_rules = dnat_rules + forward_rules + [masquerade_rule]
+        failed_rules = []
+        applied_rules = 0
+        
+        for rule in all_rules:
+            iptables_cmd = f'sudo {rule}'
+            iptables_result = run_wsl_command(iptables_cmd)
+            if iptables_result['success']:
+                applied_rules += 1
+                print(f"  ✅ Applied: {rule}")
+            else:
+                failed_rules.append(f"{rule}: {iptables_result.get('output', 'Unknown error')}")
+                print(f"  ❌ Failed: {rule}")
+        
+        if failed_rules:
             return jsonify({
                 'success': False,
-                'error': f'Failed to connect to honeypot: {connect_result.get("error", "Unknown error")}'
+                'error': f'Failed to apply {len(failed_rules)} iptables rules',
+                'details': failed_rules
             })
         
-        # Log the reroute
-        log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] QUICK-REROUTE: {container_name} ({device_ip}) to honeypot\n"
+        # STEP 2: Connect device to honeypot network (for direct bidirectional communication)
+        connect_cmd = f'docker network connect {honeypot_network} {container_name} 2>&1'
+        connect_result = run_wsl_command(connect_cmd)
+        
+        if not connect_result['success'] and 'already exists' not in connect_result.get('output', ''):
+            # If connection fails, that's okay - DNAT rules are already in place
+            print(f"⚠️ Note: Could not connect to {honeypot_network}, but DNAT rules applied")
+        
+        # STEP 3: Log the reroute
+        log_entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] DNAT REROUTE (Agent): {container_name} ({device_ip}) → Honeypot ({honeypot_target_ip}) via DNAT | Rules: {applied_rules}\n"
         try:
             os.makedirs(os.path.join(HONEYPOT_DIR, 'logs'), exist_ok=True)
             with open(os.path.join(HONEYPOT_DIR, 'logs', 'reroutes.log'), 'a') as f:
@@ -2807,12 +3205,16 @@ def agent_reroute_to_beelzebub():
         except:
             pass
         
-        print(f"  ✅ Successfully rerouted {container_name} to honeypot")
+        print(f"  ✅ Successfully rerouted {container_name} traffic to honeypot via DNAT")
         
         return jsonify({
             'success': True,
-            'message': f'Device {container_name} ({device_ip}) rerouted to honeypot network',
+            'message': f'✅ ALL traffic from {container_name} ({device_ip}) rerouted to Beelzebub honeypot ({honeypot_target_ip}) via DNAT iptables. Device stays on custom_net. {applied_rules} rules applied.',
             'device': container_name,
+            'original_ip': device_ip,
+            'honeypot_target': honeypot_target_ip,
+            'method': 'DNAT_iptables',
+            'rules_applied': applied_rules,
             'action': 'rerouted_to_honeypot'
         })
         
@@ -2823,10 +3225,79 @@ def agent_reroute_to_beelzebub():
             'error': str(e)
         })
 
+def start_mcp_server():
+    """Start MCP server in background if not already running"""
+    import psutil
+    import sys
+    
+    # Check if MCP server is already running
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            cmdline = proc.info.get('cmdline', [])
+            if cmdline and 'server.py' in ' '.join(cmdline) and 'mcp_agent' in ' '.join(cmdline):
+                print("✅ MCP server already running (PID: {})".format(proc.info['pid']))
+                return proc.info['pid']
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    
+    # Start MCP server
+    print("🚀 Starting MCP server...")
+    mcp_server_path = os.path.join(BASE_DIR, 'mcp_agent', 'server', 'server.py')
+    
+    if not os.path.exists(mcp_server_path):
+        print(f"⚠️  MCP server not found at {mcp_server_path}")
+        return None
+    
+    try:
+        # Start server as background process
+        if sys.platform == 'win32':
+            # Windows: Use CREATE_NEW_CONSOLE to run in background
+            process = subprocess.Popen(
+                [sys.executable, 'server.py'],
+                cwd=os.path.join(BASE_DIR, 'mcp_agent', 'server'),
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        else:
+            # Linux/Mac
+            process = subprocess.Popen(
+                [sys.executable, 'server.py'],
+                cwd=os.path.join(BASE_DIR, 'mcp_agent', 'server'),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+        
+        import time
+        time.sleep(2)  # Give server time to start
+        
+        if process.poll() is None:
+            print(f"✅ MCP server started (PID: {process.pid})")
+            return process.pid
+        else:
+            print("⚠️  MCP server failed to start (check dependencies: pip install fastmcp)")
+            return None
+    except Exception as e:
+        print(f"⚠️  Could not start MCP server: {e}")
+        print("   Install dependencies: pip install fastmcp")
+        return None
+
 if __name__ == '__main__':
     clear_old_data()  # Clear old data on startup
     print("=" * 80)
     print("🚀 Network Security Dashboard Starting...")
+    print("=" * 80)
+    
+    # Auto-start MCP server
+    try:
+        import psutil
+        mcp_pid = start_mcp_server()
+    except ImportError:
+        print("⚠️  psutil not installed, cannot auto-start MCP server")
+        print("   Install: pip install psutil")
+        mcp_pid = None
+    
     print("=" * 80)
     print("📊 Dashboard URL: http://localhost:5100")
     print("🔧 Control your entire network security setup from the web UI")
@@ -2840,6 +3311,10 @@ if __name__ == '__main__':
     print("   ✓ Up to 100 iterations per query")
     print("   ✓ Real-time token usage monitoring")
     print("   ✓ Integrated with FastMCP server")
+    if mcp_pid:
+        print(f"   ✓ MCP Server running (PID: {mcp_pid})")
+    else:
+        print("   ⚠️  MCP Server not started (install: pip install fastmcp)")
     print("=" * 80)
     print("⚠️  Note: Network monitor Flask API is on port 5000")
     print("=" * 80)
