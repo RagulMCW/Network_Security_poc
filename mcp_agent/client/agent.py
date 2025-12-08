@@ -140,7 +140,7 @@ class MCPAgent:
 
         # Only print minimal info
         if not self.quiet:
-            print("[OK] Agent Ready")
+            print("Network Security Agent Initialized")
             print()
 
     def _check_docker_in_wsl(self) -> bool:
@@ -173,7 +173,7 @@ class MCPAgent:
                 self.tools = []
             
             if not self.quiet and self.tools:
-                print(f"[OK] Loaded {len(self.tools)} tools\n")
+                print(f"Security Tools Ready: {len(self.tools)} available\n")
                 
         except Exception as e:
             print(f"[ERROR] Could not load tools - {e}")
@@ -323,17 +323,88 @@ LEGITIMATE TRAFFIC (DO NOT BLOCK):
 - Traffic TO 192.168.6.131 is normal (devices reporting to monitor)
 
 WORKFLOW:
-1. Call read_zeek_logs
-2. Look for ATTACK patterns (suspicious user-agents, attack URLs)
-3. Find the SOURCE IP of attacks (the client making malicious requests)
-4. ONLY call move_device_to_honeypot if you find real attack patterns
-5. Report findings
+1. Call read_zeek_logs ONCE to get all traffic data
+2. Analyze the logs for ATTACK patterns (suspicious user-agents, attack URLs)
+3. ONLY check file hashes if you see SUSPICIOUS files (APK, EXE, DLL from unknown sources)
+4. DO NOT check hashes for normal text/json/html files from legitimate devices
+5. If attack patterns found, call move_device_to_honeypot
+6. Report findings using OUTPUT FORMAT below
 
-REMEMBER:
-- The ATTACKER is the CLIENT making malicious requests
-- The SERVER (192.168.6.131) receiving requests is NOT the attacker
-- Look for suspicious User-Agent headers and malicious URL patterns
-- Normal /api/device/data traffic is LEGITIMATE
+EFFICIENCY RULES:
+- Complete analysis in 2-3 steps maximum
+- DO NOT call check_malware_hash for every file - only for suspicious executables
+- Normal IoT device file transfers (text/plain, application/json) do NOT need hash checking
+- Focus on behavior patterns, not individual file checks
+- If no suspicious patterns in logs, report CLEAR immediately
+
+FILE/MALWARE DETECTION (Only when needed):
+- Only check hashes for: APK, EXE, DLL, SCR, BAT, PS1, SH files
+- Skip hash checks for: text/plain, text/html, application/json, image files
+- If source IP is a known legitimate device, skip hash checking
+
+OUTPUT FORMAT (Professional, Detailed but Simple):
+
+IF THREAT FOUND:
+---
+SECURITY REPORT - THREAT DETECTED
+
+Analysis Performed:
+- Analyzed [X] network sessions from Zeek logs
+- Checked [X] file hashes against malware database
+- Monitored traffic from [list IPs]
+
+Threat Details:
+- Issue: [What attack was detected - C2 beaconing, malware, credential theft, etc.]
+- Attacker: [IP address and container name if known]
+- Target: [What was being attacked]
+
+Evidence Found:
+- [Actual log entry 1 - URL, User-Agent, timestamp]
+- [Actual log entry 2]
+
+Risk Assessment:
+- Impact: [What damage could occur - data theft, system compromise, etc.]
+- Severity: [HIGH/MEDIUM/LOW]
+
+Action Taken:
+- [What was done - Device isolated to honeypot, blocked, etc.]
+
+Precautions:
+- [Recommendation 1 - e.g., Update firewall rules]
+- [Recommendation 2 - e.g., Monitor similar patterns]
+---
+
+IF NO THREAT:
+---
+SECURITY REPORT - ALL CLEAR
+
+Analysis Performed:
+- Analyzed [X] network sessions from Zeek logs
+- Checked [X] file transfers for malware
+- Monitored [X] devices on network
+
+Findings:
+- All traffic is legitimate IoT telemetry
+- No malicious patterns detected
+- No known malware hashes found
+
+Devices Analyzed:
+- [IP 1]: Normal activity (POST /api/device/data)
+- [IP 2]: Health checks only
+
+Status: Network is secure. No action required.
+
+Precautions:
+- Continue monitoring for anomalies
+- Keep malware database updated
+---
+
+RULES:
+- Always provide analysis details (what was checked)
+- Include actual evidence from logs
+- List precautions even when no threat
+- Be professional, clear, and informative
+- No emojis or excessive symbols
 
 Context: {self.context_manager.get_status_display()}"""
 
@@ -381,7 +452,7 @@ Context: {self.context_manager.get_status_display()}"""
                 iteration_start = time.time()
                 
                 if not self.quiet:
-                    print(f"\n🔄 Iteration {iteration} [STARTED]", flush=True)
+                    print(f"\n[STEP {iteration}] Analyzing network traffic...", flush=True)
                 
                 # Call glm-4.5
                 llm_start = time.time()
@@ -395,7 +466,7 @@ Context: {self.context_manager.get_status_display()}"""
                 
                 llm_elapsed = time.time() - llm_start
                 if not self.quiet:
-                    print(f"🤖 LLM Response [COMPLETED in {llm_elapsed:.2f}s]", flush=True)
+                    print(f"  AI Analysis completed in {llm_elapsed:.2f}s", flush=True)
                 
                 # Update token usage silently
                 if hasattr(response, 'usage'):
@@ -470,12 +541,12 @@ Context: {self.context_manager.get_status_display()}"""
                         
                         if tool_call.name in forbidden_tools:
                             if not self.quiet:
-                                print(f"[BLOCKED] {tool_call.name}({params_str}) - use move_device_to_honeypot instead", flush=True)
+                                print(f"  [SKIP] {tool_call.name} - Not permitted", flush=True)
                             tool_result_text = f"Error: {tool_call.name} is not allowed. Use move_device_to_honeypot for rerouting."
                         else:
                             # Tool progress output with timing AND PARAMETERS
                             if not self.quiet:
-                                print(f"[TOOL] {tool_call.name}({params_str}) [STARTED]", flush=True)
+                                print(f"  > Running: {tool_call.name}", flush=True)
                             
                             # Call tool callback if provided (for web UI)
                             if self.tool_callback:
@@ -492,7 +563,7 @@ Context: {self.context_manager.get_status_display()}"""
                         
                         # Show completion with timing AND OUTPUT (only if not blocked)
                         if not self.quiet and tool_call.name not in forbidden_tools:
-                            print(f"[OK] {tool_call.name} [COMPLETED in {tool_elapsed:.2f}s]", flush=True)
+                            print(f"    Done ({tool_elapsed:.2f}s)", flush=True)
                             # Show truncated output (first 500 chars)
                             # output_preview = tool_result_text[:500] if len(tool_result_text) > 500 else tool_result_text
                             # if len(tool_result_text) > 500:
@@ -523,7 +594,7 @@ Context: {self.context_manager.get_status_display()}"""
                     # Show iteration completion
                     iteration_elapsed = time.time() - iteration_start
                     if not self.quiet:
-                        print(f"[OK] Iteration {iteration} [COMPLETED in {iteration_elapsed:.2f}s]", flush=True)
+                        print(f"  Step {iteration} completed ({iteration_elapsed:.2f}s)", flush=True)
                     
                     # Continue loop to get glm-4.5's response to tool results
                     continue
@@ -531,16 +602,14 @@ Context: {self.context_manager.get_status_display()}"""
                 # If we get here without tool calls, break
                 iteration_elapsed = time.time() - iteration_start
                 if not self.quiet:
-                    print(f"[OK] Iteration {iteration} [COMPLETED in {iteration_elapsed:.2f}s - NO TOOLS]", flush=True)
+                    print(f"  Step {iteration} completed ({iteration_elapsed:.2f}s)", flush=True)
                 break
             
             if iteration >= max_iterations:
                 final_response_text += f"\n\n[WARNING] Reached maximum iterations ({max_iterations})"
             
-            # Calculate total query time
+            # Calculate total query time (silent - no output needed)
             total_elapsed = time.time() - query_start_time
-            if not self.quiet:
-                print(f"\n[TIME] TOTAL QUERY TIME: {total_elapsed:.2f}s ({iteration} iterations)", flush=True)
             
             # Add final assistant response to conversation history
             self.conversation_history.append({

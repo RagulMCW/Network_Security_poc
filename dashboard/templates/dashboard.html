@@ -393,9 +393,14 @@
                     <div class="card-title">
                         <i class="fas fa-brain text-primary"></i> LLM AI Responses
                     </div>
-                    <button class="btn btn-warning btn-small" onclick="refreshLLMLogs()">
-                        <i class="fas fa-sync"></i> Refresh
-                    </button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-success btn-small" onclick="downloadLLMLogsAsHTML()">
+                            <i class="fas fa-download"></i> Download HTML
+                        </button>
+                        <button class="btn btn-warning btn-small" onclick="refreshLLMLogs()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
                 </div>
                 <div class="logs-container" id="llm-logs" style="max-height: 500px; overflow-y: auto;">
                     <div class="log-entry">Loading LLM responses...</div>
