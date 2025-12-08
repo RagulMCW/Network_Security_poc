@@ -56,27 +56,47 @@ env/
 *.sublime-workspace
 .vs/
 
-# Logs & Temporary Files
-# ----------------------
+# Logs & Databases (Comprehensive)
+# --------------------------------
 *.log
+*.jsonl
+*.sqlite
+*.db
 logs/
+**/logs/
+**/*.log
+**/*.jsonl
+backup_logs/
+
+# Network Captures & Zeek Logs
+# ----------------------------
+*.pcap
+*.pcapng
+captures/
+**/captures/
+pcap_captures/
+**/pcap_captures/
+zeek_logs/
+**/zeek_logs/
+network/zeek_logs/
+
+# Specific Component Logs
+# -----------------------
+attackers/**/logs/
+honey_pot/logs/
+honey_pot/captures/
+honey_pot/pcap_captures/
+dashboard/*.log
+
+# Temporary Files
+# ---------------
 *.tmp
 *.temp
 *.cache
-
-# PCAP Captures (large files)
-# ---------------------------
-*.pcap
-honey_pot/pcap_captures/*.pcap
-network/captures/*.pcap
-honey_pot/captures/*
-!honey_pot/pcap_captures/.gitkeep
-!network/captures/.gitkeep
-
-# SSH Attacker Logs
-# -----------------
-attackers/ssh_attacker/logs/*.log
-!attackers/ssh_attacker/logs/.gitkeep
+*.bak
+*.backup
+*.old
+*~
 
 # Docker
 # ------
@@ -104,10 +124,10 @@ Desktop.ini
 # ---------------
 network/analyze_output.txt
 dashboard/*.log
+dashboard/blocked_devices.json
 
 # Beelzebub Example Configs (user-specific)
 # -----------------------------------------
 honey_pot/beelzebub-example/configurations/*
-!honey_pot/beelzebub-example/configurations/.gitkeep
 extract-*
 zeek_logs/*

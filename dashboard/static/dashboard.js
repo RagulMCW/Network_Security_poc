@@ -512,7 +512,36 @@ async function refreshBeelzebubStats() {
         const data = await response.json();
         
         document.getElementById('beelzebub-interactions').textContent = `${data.total_interactions} Interactions`;
-        document.getElementById('beelzebub-services-count').textContent = `${data.services.length} Active`;
+        
+        // Define services configuration
+        const services = [
+            { name: 'SSH', port: 2223, icon: 'fa-terminal' },
+            { name: 'HTTP', port: 8081, icon: 'fa-globe' },
+            { name: 'HTTPS', port: 8443, icon: 'fa-lock' },
+            { name: 'FTP', port: 2121, icon: 'fa-file-alt' },
+            { name: 'Telnet', port: 2323, icon: 'fa-tty' },
+            { name: 'MySQL', port: 3306, icon: 'fa-database' },
+            { name: 'PostgreSQL', port: 5432, icon: 'fa-server' }
+        ];
+
+        const servicesDiv = document.getElementById('beelzebub-services');
+        const countBadge = document.getElementById('beelzebub-services-count');
+        
+        if (data.running) {
+            countBadge.textContent = `${services.length} Services`;
+            countBadge.className = 'status-badge status-on';
+            
+            servicesDiv.innerHTML = services.map(svc => `
+                <div style="background: rgba(255,255,255,0.05); padding: 0.5rem; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fas ${svc.icon} text-info" style="width: 20px;"></i> ${svc.name}</span>
+                    <strong class="text-success">${svc.port}</strong>
+                </div>
+            `).join('');
+        } else {
+            countBadge.textContent = '0 Services';
+            countBadge.className = 'status-badge status-off';
+            servicesDiv.innerHTML = '<div class="text-muted" style="grid-column: span 2; text-align: center; padding: 1rem;">Honeypot is offline</div>';
+        }
         
         updateStatusBadge('beelzebub-status', data.running);
         viewBeelzebubLogs();

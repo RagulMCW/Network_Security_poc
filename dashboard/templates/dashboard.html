@@ -365,14 +365,9 @@
                         <div class="card-title">Active Services</div>
                         <span class="status-badge status-off" id="beelzebub-services-count">0 Services</span>
                     </div>
-                    <div id="beelzebub-services" class="text-secondary">
-                        <p>SSH: <strong>Port 2223</strong></p>
-                        <p>HTTP: <strong>Port 8081</strong></p>
-                        <p>HTTPS: <strong>Port 8443</strong></p>
-                        <p>FTP: <strong>Port 2121</strong></p>
-                        <p>Telnet: <strong>Port 2323</strong></p>
-                        <p>MySQL: <strong>Port 3306</strong></p>
-                        <p>PostgreSQL: <strong>Port 5432</strong></p>
+                    <div id="beelzebub-services" class="text-secondary" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <!-- Services will be populated by JavaScript -->
+                        <div class="text-muted" style="grid-column: span 2; text-align: center;">Checking status...</div>
                     </div>
                 </div>
             </div>

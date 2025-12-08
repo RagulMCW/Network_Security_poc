@@ -50,3 +50,4 @@
 [2025-12-08 10:35:26] MASS CLEAR: Removed ALL DNAT rules for 5 devices
 [2025-12-08 11:07:42] MASS CLEAR: Removed ALL DNAT rules for 4 devices
 {"timestamp": "2025-12-08T11:08:14.847143", "device_id": "192.168.6.201", "container_name": "endpoint_behavior_attacker", "reason": "Multiple malicious attack patterns detected: Suspicious user-agents (SuspiciousBot, SystemBackupService, WindowsNetworkService), credential theft attempts (/api/v1/files/read), data exfiltration attempts (/api/v2/storage/sync), and potential C2 beaconing (/api/v1/telemetry/events)", "original_ip": "192.168.6.201", "original_network": "custom_net", "honeypot_ip": "172.18.0.3", "honeypot_network": "honey_pot_honeypot_net", "honeypot_target": "172.18.0.2", "network_monitor_ip": "192.168.6.131", "method": "complete_network_switch", "isolated": true}
+[2025-12-08 11:49:08] MASS CLEAR: Removed ALL DNAT rules for 0 devices

@@ -15,7 +15,157 @@ Think of this as a **smart security camera system** for your network:
 
 ---
 
-## 🔄 **Step-by-Step Process**
+## 🔄 **System Architecture & Workflow**
+
+### **1. Current Architecture - Visual Overview**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 Docker Network: custom_net                              │
+│                                    (192.168.6.0/24)                                     │
+│                                                                                         │
+│  ┌──────────────────────┐         ┌──────────────────────┐   ┌──────────────────────┐   │
+│  │    Monitor Server    │◄────────┤    Normal Devices    │   │      Attackers       │   │
+│  │   (network-monitor)  │         │   (IoT Simulators)   │   │   (Malware/DoS/SSH)  │   │
+│  │                      │         │                      │   │                      │   │
+│  │ IP: 192.168.6.131    │         │ IP: 192.168.6.10-16  │   │ IP: 192.168.6.200+   │   │
+│  │                      │         │                      │   │                      │   │
+│  │ Services:            │         │ Behavior:            │   │ Behavior:            │   │
+│  │ • Zeek (Traffic Log) │         │ • Send Sensor Data   │   │ • Upload Malware     │   │
+│  │ • tcpdump (Capture)  │         │ • Regular Heartbeat  │   │ • Brute Force SSH    │   │
+│  │ • Flask API (:5000)  │         │ • Valid Requests     │   │ • DoS Flooding       │   │
+│  └──────────┬───────────┘         └──────────────────────┘   └──────────────────────┘   │
+│             │                                                                           │
+└─────────────┼───────────────────────────────────────────────────────────────────────────┘
+              │
+              │ Traffic Logs (conn.log, files.log)
+              ▼
+┌─────────────────────────────┐       ┌───────────────────────────────────────────────────┐
+│      Host Machine (Windows) │       │           Docker Network: honeypot_net            │
+│                             │       │                (172.18.0.0/16)                    │
+│  ┌───────────────────────┐  │       │                                                   │
+│  │       MCP Agent       │  │       │  ┌──────────────────────┐                         │
+│  │   (Python/Claude AI)  │  │       │  │  Beelzebub Honeypot  │                         │
+│  │                       │  │       │  │                      │                         │
+│  │ Actions:              │  │       │  │ IP: 172.18.0.2       │                         │
+│  │ 1. Read Zeek Logs     │──┼──────►│  │                      │                         │
+│  │ 2. Check File Hashes  │  │ DNAT  │  │ Services:            │                         │
+│  │ 3. Reroute Traffic    │  │ Rule  │  │ • SSH (LLM Powered)  │                         │
+│  └───────────────────────┘  │       │  │ • HTTP / FTP / SQL   │                         │
+│                             │       │  └──────────▲───────────┘                         │
+│  ┌───────────────────────┐  │       │             │                                     │
+│  │      Dashboard        │  │       └─────────────┼─────────────────────────────────────┘
+│  │    (Flask Web UI)     │  │                     │                                      
+│  │                       │  │                     │                                      
+│  │ • http://localhost:5000  │                     │                                      
+│  └───────────────────────┘  │                     │                                      
+└─────────────────────────────┘                     │                                      
+                                                    │                                      
+         Attacker Traffic Redirected (DNAT) ────────┘                                      
+```
+
+### **2. Step-by-Step: How It Works**
+
+#### **Step 1: Start the System**
+```bash
+scripts/start_all.sh
+```
+**What happens:**
+- ✅ Creates `custom_net` (192.168.6.0/24) and `honeypot_net`
+- ✅ Starts **Network Monitor** (192.168.6.131) with Zeek & tcpdump
+- ✅ Starts **Honeypot** (172.18.0.2) with LLM integration
+- ✅ Starts **Dashboard** on host (localhost:5000)
+
+#### **Step 2: Traffic Generation (Normal vs Attack)**
+
+**Scenario A: Normal IoT Device**
+```
+IoT Device (192.168.6.10)                   Monitor (192.168.6.131)
+     │                                            │
+     │ 1. Send Sensor Data (JSON)                 │
+     ├──────────────────────────────────────────►│
+     │   POST /api/device/data                    │
+     │                                            │
+     │◄──────────────────────────────────────────┤
+     │   200 OK                                   │
+```
+*Result: Zeek logs "Normal" traffic. Agent sees no threat.*
+
+**Scenario B: Malware Attack**
+```
+Malware Attacker (192.168.6.200)            Monitor (192.168.6.131)
+     │                                            │
+     │ 1. Upload Malicious File (APK/EXE)         │
+     ├──────────────────────────────────────────►│
+     │   POST /api/firmware/update                │
+     │   [Malicious Payload]                      │
+     │                                            │
+     │◄──────────────────────────────────────────┤
+     │   200 OK (File received)                   │
+```
+*Result: Zeek extracts file hash. Agent detects threat.*
+
+#### **Step 3: Detection & Analysis (The AI Brain)**
+
+**Automatic Process (Every 30s):**
+1. **Zeek** rotates logs (`conn.log`, `files.log`) to `network/zeek_logs/`
+2. **MCP Agent** reads the new logs
+3. **Agent** sees file upload from `192.168.6.200`
+4. **Agent** checks hash against **MalwareBazaar Database**
+5. **Agent** confirms: "⚠️ MALWARE DETECTED (Trojan.AndroidOS)"
+
+#### **Step 4: Automated Response (Isolation)**
+
+**Action Taken:**
+1. Agent triggers **Isolation Protocol**
+2. Applies **iptables DNAT Rule** on the Host/Router:
+   ```bash
+   iptables -t nat -A PREROUTING -s 192.168.6.200 -j DNAT --to-destination 172.18.0.2
+   ```
+3. **Attacker is now silently rerouted to Honeypot**
+
+#### **Step 5: Honeypot Interaction (AI vs Attacker)**
+
+The honeypot uses **Ollama (LLM)** to generate realistic responses, fooling the attacker into thinking they have breached a real system.
+
+```
+┌──────────────────────┐                    ┌──────────────────────┐
+│   Malware Attacker   │                    │  Beelzebub Honeypot  │
+│   (192.168.6.200)    │                    │    (172.18.0.2)      │
+└──────────┬───────────┘                    └──────────┬───────────┘
+           │                                           │
+           │ 1. SSH Login Attempt                      │
+           │    "ssh root@192.168.6.131"               │
+           ├──────────────────────────────────────────►│
+           │                                           │
+           │                                           │ 2. Honeypot asks LLM:
+           │                                           │    "User ran 'ssh root'. Generate a
+           │                                           │     realistic Ubuntu login prompt."
+           │                                           │
+           │ 3. LLM Generates Response                 │◄────────────────────────┐
+           │    "Welcome to Ubuntu 22.04 LTS..."       │                         │
+           │◄──────────────────────────────────────────┤                         │
+           │                                           │                         │
+           │ 4. Attacker runs command                  │                         │
+           │    "cat /etc/passwd"                      │                         │
+           ├──────────────────────────────────────────►│                         │
+           │                                           │                         │
+           │                                           │ 5. Honeypot asks LLM:   │
+           │                                           │    "User ran 'cat /etc/passwd'. │
+           │                                           │     Generate fake file content."│
+           │                                           │                         │
+           │ 6. LLM Generates Fake File                │◄────────────────────────┘
+           │    "root:x:0:0:root:/root:/bin/bash..."   │
+           │◄──────────────────────────────────────────┤
+           │                                           │
+           ▼                                           ▼
+    Attacker is fooled!                   Interaction Logged
+```
+*Result: Attacker wastes time attacking a decoy while you collect evidence.*
+
+---
+
+## 🔄 **Full Working Flow**
 
 ### **Step 1: Normal Traffic Flow**
 ```
@@ -29,9 +179,9 @@ Think of this as a **smart security camera system** for your network:
 ```
 💀 Attacker → 🌐 Network → 🖥️ Monitor → 🎥 Captured
 ```
-- Malware attacker uploads suspicious files
-- DoS attacker floods network with packets
-- SSH attacker tries brute force login
+- **Malware Attacker**: Uploads suspicious files (APK, EXE)
+- **DoS Attacker**: Floods network with packets
+- **SSH Attacker**: Tries brute force login
 - **All traffic is captured by tcpdump**
 
 ### **Step 3: Traffic Analysis**
@@ -69,35 +219,121 @@ When threat is confirmed:
 5. Honeypot logs all attacker behavior safely
 
 ---
-## 🏗️ **Key Components**
+
+## 📂 **Project Structure**
+
+```
+Network_Security_poc/
+├── attackers/              # Attack simulation containers
+│   ├── dos_attacker/       # Denial of Service simulator
+│   ├── endpoint_behavior/  # Endpoint behavior simulator
+│   ├── malware_attacker/   # Malware upload simulator
+│   └── ssh_attacker/       # SSH brute force simulator
+├── dashboard/              # Web interface (Flask)
+│   ├── app.py              # Main application
+│   ├── static/             # JS, CSS
+│   └── templates/          # HTML templates
+├── devices/                # IoT device simulators
+├── honey_pot/              # Beelzebub Honeypot
+│   ├── docker-compose.yml  # Honeypot configuration
+│   └── logs/               # Honeypot interaction logs
+├── malware_db/             # Malware hash database & YARA rules
+├── mcp_agent/              # AI Agent (MCP Server & Client)
+│   ├── client/             # Agent logic
+│   └── server/             # MCP server implementation
+├── network/                # Network monitoring (Zeek)
+│   ├── zeek/               # Zeek scripts
+│   └── zeek_logs/          # Traffic logs
+├── scripts/                # Utility scripts
+└── tests/                  # Test scripts
+```
+
+---
+
+## 🚀 **Quick Start**
+
+### 1. **Initial Setup**
+Run the setup script to initialize the environment:
+```bash
+scripts/initial_setup.bat
+```
+
+### 2. **Start the System**
+Launch all containers and services:
+```bash
+scripts/start_all.sh
+```
+
+### 3. **Access Dashboard**
+Open your browser and navigate to:
+`http://localhost:5000`
+
+### 4. **Run AI Agent**
+Start the AI agent to monitor traffic:
+```bash
+mcp_agent/RUN_AGENT.bat
+```
+
+---
+
+## 🛠️ **Key Components**
 
 ### 1. 🖥️ **Network Monitor (Zeek Engine)**
 **What it does:** Acts as the "security camera" recording all network traffic
-
-**How it works:**
 - Runs on Docker container at `192.168.6.131:5000`
 - Uses `tcpdump` to capture all packets on the network
 - Zeek processes PCAP files every 30 seconds
 - Generates detailed logs: `conn.log`, `http.log`, `files.log`, `dns.log`
-- Custom `local.zeek` script extracts file hashes (SHA256) from HTTP headers
 
-**Key Features:**
-- Real-time packet capture
-- File transfer detection with hash extraction
-- Protocol analysis (HTTP, DNS, TCP, UDP)
-- Automated log rotation by session
+### 2. 💀 **Attack Simulators**
+- **Malware Attacker (192.168.6.200)**: Uploads real malware APK files
+- **DoS Attacker (192.168.6.132)**: Simulates high-volume packet flooding
+- **SSH Attacker**: Attempts brute force login
+
+### 3. 🍯 **Honeypot (Beelzebub)**
+- **Role**: Decoy system to trap attackers
+- **Features**: AI-powered responses (LLM), SSH emulation, HTTP emulation
+- **Integration**: Connected to dashboard for real-time monitoring
+
+### 4. 🤖 **MCP Agent**
+- **Role**: Intelligent analysis and response
+- **Capabilities**:
+    - Reads Zeek logs
+    - Checks file hashes against malware database
+    - Executes Docker commands
+    - Manages iptables rules for isolation
 
 ---
 
-### 2. 💀 **Attack Simulators**
+## 📊 **Dashboard Features**
 
-#### **Malware Attacker (192.168.6.200)**
-**Purpose:** Tests signature-based malware detection
+- **Real-time Traffic Map**: Visualizes network flow
+- **Threat Alerts**: Instant notifications of detected attacks
+- **Honeypot Logs**: View attacker interactions
+- **LLM Responses**: See how the AI honeypot responds to attackers
+- **Control Panel**: Start/Stop simulators, Reroute IPs
 
-**Behavior:**
-- Uploads real malware APK files (5.5 MB) every 5 seconds
-- Sends files to `/api/firmware/update` endpoint
-- Uses Python `requests` library with custom headers
+---
+
+## 📝 **Scripts & Utilities**
+
+All utility scripts are located in the `scripts/` directory:
+- `start_all.sh`: Start the entire system
+- `apply_dnat_reroute.bat`: Manually reroute an IP to the honeypot
+- `initial_setup.bat`: First-time setup
+- `diagnose.bat`: Troubleshoot issues
+
+---
+
+## 🧪 **Testing**
+
+Run tests located in the `tests/` directory:
+- `test_gemini.py`: Test LLM connection
+- `test_ssh_llm_connection.py`: Test SSH honeypot connectivity
+
+---
+
+**Developed for Network Security Research**
 - Hash: `a864d996cb...` (known malware signature)
 
 **Detection Method:** File hash matching against MalwareBazaar database
