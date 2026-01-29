@@ -135,7 +135,7 @@ The honeypot uses **Ollama (LLM)** to generate realistic responses, fooling the 
 └──────────┬───────────┘                    └──────────┬───────────┘
            │                                           │
            │ 1. SSH Login Attempt                      │
-           │    "ssh root@192.168.6.131"               │
+           │    "ssh root@192.168.6.201"               │
            ├──────────────────────────────────────────►│
            │                                           │
            │                                           │ 2. Honeypot asks LLM:
@@ -480,7 +480,7 @@ Run tests located in the `tests/` directory:
 
 ### Quick Start
 1. **Start the System:**
-   `ash
+   `Bash
    cd Network_Security_poc
    ./scripts/start_all.sh
    ` 
